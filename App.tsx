@@ -844,7 +844,11 @@ export default function App() {
             <View style={styles.iosGrabber} />
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-              style={styles.modalBodyContent}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+              style={[
+                styles.modalBodyContent,
+                { paddingBottom: isKeyboardVisible ? 20 : (Platform.OS === 'ios' ? 60 : 40) }
+              ]}
             >
               <View style={{ flex: 1, alignItems: 'center', paddingTop: 20 }}>
                 <Text style={styles.modalSheetTitle}>New Habit</Text>
@@ -877,6 +881,35 @@ export default function App() {
                   />
                   <View style={styles.modalInputGlow} />
                 </View>
+              </View>
+
+              <View style={styles.modalFooterPremium}>
+                <Pressable
+                  style={styles.premiumAddButtonLarge}
+                  onPress={() => {
+                    if (newHabitTitle.trim()) {
+                      const icon = getAutoEmoji(newHabitTitle);
+                      setOnboarding(prev => ({
+                        ...prev,
+                        day1Habits: [
+                          ...prev.day1Habits,
+                          { id: Date.now().toString(), title: newHabitTitle, emoji: icon }
+                        ]
+                      }));
+                      setNewHabitTitle('');
+                      consolidatedClose();
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    }
+                  }}
+                >
+                  <LinearGradient
+                    colors={[PRIMARY_COLOR, '#1a5e5d']}
+                    style={styles.premiumButtonGradient}
+                  >
+                    <Text style={styles.premiumButtonTextMain}>INITIALIZE</Text>
+                    <Feather name="zap" size={20} color="#fff" />
+                  </LinearGradient>
+                </Pressable>
               </View>
             </KeyboardAvoidingView>
           </Animated.View>
