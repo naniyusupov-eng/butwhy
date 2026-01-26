@@ -1725,29 +1725,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingBottom: Platform.OS === 'ios' ? 60 : 40,
   },
-  modalAddButton: {
-    height: 60,
+  modalFooterPremium: {
+    paddingTop: 20,
     width: '100%',
-    borderRadius: 30,
+  },
+  premiumAddButtonLarge: {
+    height: 64,
+    width: '100%',
+    borderRadius: 32,
     overflow: 'hidden',
     shadowColor: PRIMARY_COLOR,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: 8,
   },
-  modalAddButtonGradient: {
+  premiumButtonGradient: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
   },
-  modalAddButtonText: {
+  premiumButtonTextMain: {
     color: '#fff',
     fontSize: 16,
     fontFamily: 'Garet-Heavy',
     letterSpacing: 2,
-    marginRight: 10,
   },
   modalSheetTitle: {
     fontSize: 28,
