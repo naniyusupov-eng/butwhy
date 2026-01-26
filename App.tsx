@@ -16,6 +16,9 @@ const { width, height } = Dimensions.get('window');
 
 const AnimatedImage = Animated.createAnimatedComponent(ExpoImage);
 
+// --- Context / Global State Simulation ---
+// In a real app, use Context. Here we just use props/state.
+
 // --- Types ---
 type OnboardingStep =
   | 'intro1' // The Nihilist Penguin Problem
@@ -314,12 +317,13 @@ const QuestionScreen = ({ title, options, currentStep, next, progress, onNext }:
         {options.map((option: any) => (
           <Pressable
             key={option.id}
-            style={[styles.optionCard, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)' }]}
+            style={styles.optionCard}
             onPress={() => onNext(currentStep, next, option.id)}
           >
             <Text style={styles.optionEmoji}>{option.emoji}</Text>
-            <Text style={[styles.optionText, { color: '#fff' }]}>{option.title}</Text>
-            <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
+            <View style={styles.optionTextContainer}>
+              <Text style={styles.optionText}>{option.title}</Text>
+            </View>
           </Pressable>
         ))}
       </ScrollView>
@@ -366,21 +370,45 @@ const NotificationScreen = ({ progress, notificationTime, showTimePicker, onTime
 
     <FadeInView style={styles.footer} yOffset={20}>
       <Pressable
-        style={[styles.button, { backgroundColor: '#fff' }]}
+        style={styles.premiumButton}
         onPress={onConfirm}
       >
-        <Text style={[styles.buttonText, { color: '#000' }]}>Enable Notifications</Text>
+        <Text style={styles.premiumButtonText}>Enable Notifications</Text>
+        <Feather name="bell" size={16} color="#000" style={{ marginLeft: 10 }} />
       </Pressable>
     </FadeInView>
   </View>
 );
 
-const LoadingScreen = ({ transformationType }: { transformationType: string }) => (
-  <View style={[styles.screen, styles.center, { backgroundColor: '#000' }]}>
-    <Animated.View style={styles.loadingCircle} />
-    <Text style={[styles.loadingText, { color: 'rgba(255,255,255,0.6)' }]}>Tailoring your {transformationType || 'personal'} journey...</Text>
-  </View>
-);
+const LoadingScreen = ({ transformationType }: { transformationType: string }) => {
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
+
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  return (
+    <View style={[styles.screen, styles.center, { backgroundColor: '#000' }]}>
+      <Animated.View style={[styles.loadingCircle, { transform: [{ rotate: spin }] }]} />
+      <FadeInView delay={300} yOffset={10}>
+        <Text style={styles.loadingText}>
+          Tailoring your {transformationType || 'personal'} journey...
+        </Text>
+      </FadeInView>
+    </View>
+  );
+};
 
 // --- Main App ---
 
@@ -521,7 +549,10 @@ export default function App() {
           require('./assets/welcome_visual.png'),
           require('./assets/pattern_bg.png'),
           require('./assets/success_moment.png'),
-          require('./assets/transformation_icons.png'),
+          require('./assets/evolution-img-1.png'),
+          require('./assets/evolution-img-2.png'),
+          require('./assets/evolution-img-3.png'),
+          require('./assets/evolution-img-4.png'),
         ];
 
         const fontAssets = {
@@ -705,18 +736,25 @@ export default function App() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <View style={[styles.navbar, { backgroundColor: '#000', borderTopColor: 'rgba(255,255,255,0.1)', height: Platform.OS === 'ios' ? 90 : 70 }]}>
-        <Pressable onPress={() => setStep('dashboard')}>
-          <Feather name="home" size={24} color={step === 'dashboard' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
+      <View style={[styles.navbar, { borderTopColor: 'rgba(255,255,255,0.08)', height: Platform.OS === 'ios' ? 90 : 70, paddingVertical: 0 }]}>
+        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+        <Pressable
+          style={styles.navButton}
+          onPress={() => setStep('dashboard')}
+        >
+          <Feather name="home" size={28} color={step === 'dashboard' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
         </Pressable>
         <Pressable
           style={styles.navPlusButton}
           onPress={() => setIsAddModalVisible(true)}
         >
-          <Feather name="plus" size={30} color="#000" />
+          <Feather name="plus" size={36} color="#000" />
         </Pressable>
-        <Pressable onPress={() => setStep('stats')}>
-          <Feather name="bar-chart-2" size={24} color={step === 'stats' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
+        <Pressable
+          style={styles.navButton}
+          onPress={() => setStep('stats')}
+        >
+          <Feather name="bar-chart-2" size={28} color={step === 'stats' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
         </Pressable>
       </View>
     </View>
@@ -767,30 +805,52 @@ export default function App() {
           <Text style={styles.journeyTitle}>YOUR EVOLUTION</Text>
           <View style={styles.journeyContainer}>
             <View style={[styles.journeyLine, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
-            <View style={[styles.journeyStep, styles.journeyStepActive]}>
-              <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: PRIMARY_COLOR }]}>
-                <ExpoImage source={require('./assets/transformation_icons.png')} style={styles.journeyIcon0} cachePolicy="memory-disk" />
-              </View>
-              <Text style={[styles.journeyStepLabelHeader, { color: '#fff' }]}>Day 1</Text>
-              <Text style={styles.journeyStepLabelSub}>Nihilist</Text>
-            </View>
             <View style={styles.journeyStep}>
-              <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
-                <ExpoImage source={require('./assets/transformation_icons.png')} style={styles.journeyIcon1} cachePolicy="memory-disk" />
+              <View style={styles.journeyIconWrapper}>
+                <View style={[styles.iconCropContainer, styles.activeStepGlow, { width: 56, height: 56, borderRadius: 28 }]}>
+                  <ExpoImage
+                    source={require('./assets/evolution-img-1.png')}
+                    style={styles.evolutionIconFixed}
+                    contentFit="cover"
+                    transition={0}
+                    priority="high"
+                  />
+                </View>
+              </View>
+              <Text style={[styles.journeyStepLabelHeader, { color: PRIMARY_COLOR }]}>Day 1</Text>
+              <View style={styles.journeyStageWrapper}>
+                <Text style={styles.journeyStepLabelSub}>Nihilist</Text>
+              </View>
+            </View>
+
+            <View style={styles.journeyStep}>
+              <View style={styles.journeyIconWrapper}>
+                <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                  <ExpoImage source={require('./assets/evolution-img-2.png')} style={styles.evolutionIcon} contentFit="cover" />
+                </View>
               </View>
               <Text style={[styles.journeyStepLabelHeader, { color: 'rgba(255,255,255,0.4)' }]}>Day 15</Text>
+              <View style={styles.journeyStageWrapper} />
             </View>
+
             <View style={styles.journeyStep}>
-              <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
-                <ExpoImage source={require('./assets/transformation_icons.png')} style={styles.journeyIcon2} cachePolicy="memory-disk" />
+              <View style={styles.journeyIconWrapper}>
+                <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                  <ExpoImage source={require('./assets/evolution-img-3.png')} style={styles.evolutionIcon} contentFit="cover" />
+                </View>
               </View>
               <Text style={[styles.journeyStepLabelHeader, { color: 'rgba(255,255,255,0.4)' }]}>Day 30</Text>
+              <View style={styles.journeyStageWrapper} />
             </View>
+
             <View style={styles.journeyStep}>
-              <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
-                <ExpoImage source={require('./assets/transformation_icons.png')} style={styles.journeyIcon3} cachePolicy="memory-disk" />
+              <View style={styles.journeyIconWrapper}>
+                <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                  <ExpoImage source={require('./assets/evolution-img-4.png')} style={styles.evolutionIcon} contentFit="cover" />
+                </View>
               </View>
               <Text style={[styles.journeyStepLabelHeader, { color: 'rgba(255,255,255,0.4)' }]}>Day {onboarding.timeline}</Text>
+              <View style={styles.journeyStageWrapper} />
             </View>
           </View>
         </FadeInView>
@@ -798,18 +858,25 @@ export default function App() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <View style={[styles.navbar, { backgroundColor: '#000', borderTopColor: 'rgba(255,255,255,0.1)', height: Platform.OS === 'ios' ? 90 : 70 }]}>
-        <Pressable onPress={() => setStep('dashboard')}>
-          <Feather name="home" size={24} color={step === 'dashboard' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
+      <View style={[styles.navbar, { borderTopColor: 'rgba(255,255,255,0.08)', height: Platform.OS === 'ios' ? 90 : 70, paddingVertical: 0 }]}>
+        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+        <Pressable
+          style={styles.navButton}
+          onPress={() => setStep('dashboard')}
+        >
+          <Feather name="home" size={28} color={step === 'dashboard' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
         </Pressable>
         <Pressable
           style={styles.navPlusButton}
-          onPress={() => { }}
+          onPress={() => setIsAddModalVisible(true)}
         >
-          <Feather name="plus" size={30} color="#000" />
+          <Feather name="plus" size={36} color="#000" />
         </Pressable>
-        <Pressable onPress={() => setStep('stats')}>
-          <Feather name="bar-chart-2" size={24} color={step === 'stats' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
+        <Pressable
+          style={styles.navButton}
+          onPress={() => setStep('stats')}
+        >
+          <Feather name="bar-chart-2" size={28} color={step === 'stats' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
         </Pressable>
       </View>
     </View>
@@ -860,7 +927,7 @@ export default function App() {
                     placeholderTextColor="rgba(255,255,255,0.2)"
                     value={newHabitTitle}
                     onChangeText={setNewHabitTitle}
-                    autoFocus={false}
+                    autoFocus={true}
                     selectionColor={PRIMARY_COLOR}
                     returnKeyType="done"
                     onSubmitEditing={() => {
@@ -881,35 +948,6 @@ export default function App() {
                   />
                   <View style={styles.modalInputGlow} />
                 </View>
-              </View>
-
-              <View style={styles.modalFooterPremium}>
-                <Pressable
-                  style={styles.premiumAddButtonLarge}
-                  onPress={() => {
-                    if (newHabitTitle.trim()) {
-                      const icon = getAutoEmoji(newHabitTitle);
-                      setOnboarding(prev => ({
-                        ...prev,
-                        day1Habits: [
-                          ...prev.day1Habits,
-                          { id: Date.now().toString(), title: newHabitTitle, emoji: icon }
-                        ]
-                      }));
-                      setNewHabitTitle('');
-                      consolidatedClose();
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    }
-                  }}
-                >
-                  <LinearGradient
-                    colors={[PRIMARY_COLOR, '#1a5e5d']}
-                    style={styles.premiumButtonGradient}
-                  >
-                    <Text style={styles.premiumButtonTextMain}>INITIALIZE</Text>
-                    <Feather name="zap" size={20} color="#fff" />
-                  </LinearGradient>
-                </Pressable>
               </View>
             </KeyboardAvoidingView>
           </Animated.View>
@@ -1065,22 +1103,25 @@ const styles = StyleSheet.create({
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 24,
+    padding: 16,
     borderRadius: 24,
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   optionEmoji: {
-    fontSize: 28,
-    marginRight: 20,
+    fontSize: 24,
+    marginRight: 16,
+  },
+  optionTextContainer: {
+    flex: 1,
   },
   optionText: {
-    flex: 1,
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: 'Garet-Heavy',
     color: '#fff',
+    letterSpacing: 0.2,
   },
   timePickerContainer: {
     padding: 30,
@@ -1131,7 +1172,9 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     fontFamily: 'Garet-Book',
-    color: 'rgba(255,255,255,0.6)',
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 10,
+    letterSpacing: 0.5,
   },
   tag: {
     backgroundColor: PRIMARY_COLOR + '20',
@@ -1251,13 +1294,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   navbar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  navButton: {
+    flex: 1,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   successIconBadge: {
     width: 80,
@@ -1353,18 +1403,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navPlusButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -40,
+    marginTop: -65, // Raised even higher as requested
     shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
     shadowRadius: 15,
-    elevation: 10,
+    elevation: 12,
+    zIndex: 100, // Make sure it stays above everything
   },
   premiumButtonText: {
     color: '#000',
@@ -1473,34 +1524,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.05)',
-    padding: 18,
-    borderRadius: 28,
+    padding: 14,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
   habitIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 15,
     backgroundColor: 'rgba(255,255,255,0.05)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 14,
   },
   habitIconEmoji: {
-    fontSize: 24,
+    fontSize: 20,
   },
   habitCardInfo: {
     flex: 1,
   },
   habitCardTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: 'Garet-Heavy',
     color: '#fff',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   habitCardStatus: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Garet-Book',
     color: 'rgba(255,255,255,0.4)',
   },
@@ -1652,12 +1703,14 @@ const styles = StyleSheet.create({
   journeyContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     position: 'relative',
+    height: 120,
+    marginTop: 15,
   },
   journeyLine: {
     position: 'absolute',
-    top: 20,
+    top: 30, // Exact center of 60px icon wrapper
     left: 20,
     right: 20,
     height: 1,
@@ -1665,10 +1718,17 @@ const styles = StyleSheet.create({
   },
   journeyStep: {
     alignItems: 'center',
+    width: 60,
     zIndex: 1,
   },
-  journeyStepActive: {
-    transform: [{ scale: 1.15 }],
+  activeStepGlow: {
+    backgroundColor: 'rgba(43, 144, 143, 0.2)',
+    borderColor: PRIMARY_COLOR,
+    shadowColor: PRIMARY_COLOR,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   iconCropContainer: {
     width: 44,
@@ -1680,12 +1740,28 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  journeyIconWrapper: {
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
   },
-  journeyIcon0: { width: 80, height: 80, position: 'absolute', top: 0, left: -1 },
-  journeyIcon1: { width: 85, height: 85, position: 'absolute', top: -1, left: -45 },
-  journeyIcon2: { width: 85, height: 85, position: 'absolute', top: -44, left: -1 },
-  journeyIcon3: { width: 85, height: 85, position: 'absolute', top: -44, left: -45 },
+  journeyStageWrapper: {
+    height: 15,
+    marginTop: 4,
+    justifyContent: 'center',
+  },
+  evolutionIcon: {
+    width: '100%',
+    height: '100%',
+    transform: [{ scale: 1.05 }],
+  },
+  evolutionIconFixed: {
+    width: '100%',
+    height: '100%',
+  },
   journeyStepLabelHeader: {
     fontSize: 10,
     fontFamily: 'Garet-Heavy',
