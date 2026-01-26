@@ -1,11 +1,957 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, Pressable, Animated, Dimensions, Dimensions as ScreenDimensions, Image, ScrollView, Platform, Alert, Modal, TextInput, KeyboardAvoidingView, PanResponder, Keyboard } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { useFonts } from 'expo-font';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
+import { Asset } from 'expo-asset';
+import * as Font from 'expo-font';
+
+const { width, height } = Dimensions.get('window');
+
+const AnimatedImage = Animated.createAnimatedComponent(ExpoImage);
+
+// --- Types ---
+type OnboardingStep =
+  | 'intro1' // The Nihilist Penguin Problem
+  | 'intro2' // But What If You Had a Reason?
+  | 'welcome'
+  | 'q1' // Main reason
+  | 'q2' // Primary area
+  | 'q3' // Challenge
+  | 'q4' // How many habits
+  | 'q5' // Notification time
+  | 'loading' // AI generation simulation
+  | 'firstHabit' // Create First Habit
+  | 'success' // Success Moment
+  | 'dashboard'
+  | 'stats';
+
+interface Habit {
+  id: string;
+  title: string;
+  emoji: string;
+  time?: string;
+  completed?: boolean;
+}
+
+interface OnboardingData {
+  nihilistReason: string;
+  transformationType: string;
+  habitFocus: string[];
+  timeline: 7 | 30 | 55 | 100;
+  reminderTime: string;
+  startDate: Date;
+  day1Habits: Habit[];
+}
+
+// --- Constants ---
+const PRIMARY_COLOR = '#2b908f';
+const SECONDARY_COLOR = '#ff3131';
+
+const Q1_OPTIONS = [
+  { id: 'build', title: 'Build a new healthy habit', emoji: '✨' },
+  { id: 'break', title: 'Break a bad habit', emoji: '🚫' },
+  { id: 'track', title: 'Track my daily progress', emoji: '📊' },
+  { id: 'improve', title: 'Improve mental & physical health', emoji: '🧘' },
+];
+
+const Q2_OPTIONS = [
+  { id: 'mindset', title: 'Mindset & Mindfulness', emoji: '🧠', suggestion: '10 min Meditation' },
+  { id: 'health', title: 'Health & Fitness', emoji: '💪', suggestion: 'Drink 2L Water' },
+  { id: 'productivity', title: 'Productivity & Focus', emoji: '⚡', suggestion: 'Read for 20 mins' },
+  { id: 'growth', title: 'Personal Growth', emoji: '🌱', suggestion: 'Write 3 Gratitudes' },
+];
+
+const Q3_OPTIONS = [
+  { id: 'consistency', title: 'Staying consistent', emoji: '📈' },
+  { id: 'motivation', title: 'Finding motivation', emoji: '🔥' },
+  { id: 'time', title: 'Time management', emoji: '⏰' },
+  { id: 'forgetting', title: 'Simply forgetting', emoji: '🤔' },
+];
+
+const Q4_OPTIONS = [
+  { id: 7, title: '7 Days (Trial)', emoji: '🎯' },
+  { id: 30, title: '30 Days (Commitment)', emoji: '⚖️' },
+  { id: 55, title: '55 Days (Transformation)', emoji: '🦅' },
+  { id: 100, title: '100 Days (Mastery)', emoji: '🔥' },
+];
+
+// --- Components ---
+
+const ProgressBar = ({ progress }: { progress: number }) => {
+  const widthAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(widthAnim, {
+      toValue: progress,
+      useNativeDriver: false,
+    }).start();
+  }, [progress]);
+
+  return (
+    <View style={styles.progressContainer}>
+      <Animated.View
+        style={[
+          styles.progressBar,
+          {
+            width: widthAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0%', '100%'],
+            })
+          }
+        ]}
+      />
+    </View>
+  );
+};
+
+const FadeInView = ({ children, style, delay = 0, yOffset = 25 }: any) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(yOffset)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 30,
+        friction: 8,
+        delay,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }, style]}>
+      {children}
+    </Animated.View>
+  );
+};
+
+// --- Specialized Screen Components ---
+
+const AnimatedText = ({ text, style }: { text: string, style: any }) => {
+  const lines = text.split('\n');
+  return (
+    <Text style={style}>
+      {lines.map((line, i) => (
+        <Text key={i}>
+          {line}{i !== lines.length - 1 ? '\n' : ''}
+        </Text>
+      ))}
+    </Text>
+  );
+};
+
+const CinematicIntro = ({
+  imageSource,
+  tag,
+  title,
+  caption,
+  buttonText,
+  buttonIcon,
+  onPress
+}: any) => {
+  const zoomAnim = useRef(new Animated.Value(1.3)).current;
+
+  useEffect(() => {
+    const animation = Animated.timing(zoomAnim, {
+      toValue: 1.05,
+      duration: 6000,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, []);
+
+  return (
+    <View style={[styles.screen, { backgroundColor: '#000' }]}>
+      <View style={styles.cinematicBgContainer}>
+        <AnimatedImage
+          source={imageSource}
+          style={[styles.introImageEpic, { transform: [{ scale: zoomAnim }] }]}
+          contentFit="cover"
+          transition={0}
+          priority="high"
+          cachePolicy="memory-disk"
+        />
+      </View>
+      <LinearGradient
+        colors={['rgba(0,0,0,0.7)', 'transparent', 'rgba(0,0,0,0.85)']}
+        locations={[0, 0.4, 0.9]}
+        style={StyleSheet.absoluteFill}
+      />
+
+      <View style={styles.introContentLayout}>
+        <FadeInView style={styles.introHeaderSection} yOffset={30}>
+          <Text style={styles.cinematicTag}>{tag}</Text>
+          <AnimatedText text={title} style={styles.cinematicTitle} />
+        </FadeInView>
+
+        <FadeInView style={styles.introFooterSection} yOffset={40}>
+          <View style={styles.dividerSmall} />
+          <AnimatedText text={caption} style={styles.cinematicCaption} />
+          <Pressable style={styles.premiumButton} onPress={onPress}>
+            <Text style={styles.premiumButtonText}>{buttonText}</Text>
+            <Feather name={buttonIcon as any} size={18} color="#000" style={{ marginLeft: 8 }} />
+          </Pressable>
+        </FadeInView>
+      </View>
+    </View>
+  );
+};
+
+const SuccessScreen = ({ onDashboard }: { onDashboard: () => void }) => (
+  <CinematicIntro
+    imageSource={require('./assets/success_moment.png')}
+    tag="CONGRATULATIONS"
+    title={"TRANSFORMATION\nINITIALIZED"}
+    caption={'"The penguin sees the light.\nYou are no longer bound by gravity."'}
+    buttonText="START EVOLUTION"
+    buttonIcon="zap"
+    onPress={onDashboard}
+  />
+);
+
+const FirstHabitScreen = ({ onboarding, onActivate }: { onboarding: any, onActivate: () => void }) => {
+  const suggestedHabit = onboarding.day1Habits.find((h: any) => h.id === 'suggested');
+
+  return (
+    <View style={[styles.screen, { backgroundColor: '#000' }]}>
+      <Image
+        source={require('./assets/pattern_bg.png')}
+        style={[StyleSheet.absoluteFill, { opacity: 0.08 }]}
+        resizeMode="repeat"
+      />
+
+      {/* Background Ambience */}
+      <LinearGradient
+        colors={['rgba(43, 144, 143, 0.25)', 'transparent', 'rgba(0,0,0,0.95)']}
+        style={StyleSheet.absoluteFill}
+      />
+
+      <View style={[styles.screen, { padding: 30, justifyContent: 'space-between' }]}>
+        {/* Mysterious Header */}
+        <FadeInView style={{ marginTop: 60, alignItems: 'center' }} yOffset={30}>
+          <View style={styles.catalystBadge}>
+            <Text style={styles.catalystBadgeText}>LEVEL 01</Text>
+          </View>
+          <Text style={styles.cinematicTag}>THE GENESIS</Text>
+          <AnimatedText
+            text={"Your Personal\nCatalyst"}
+            style={[styles.cinematicTitle, { textAlign: 'center', fontSize: 34, lineHeight: 42 }]}
+          />
+        </FadeInView>
+
+        {/* The Core Habit Visual */}
+        <FadeInView style={styles.imageOverlayContainer} yOffset={40}>
+          <View style={styles.catalystMainCard}>
+            <View style={styles.catalystIconOuter}>
+              <View style={styles.catalystIconInner}>
+                <Text style={{ fontSize: 44 }}>{suggestedHabit?.emoji || '✨'}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.catalystHabitTitle}>
+              {suggestedHabit?.title || 'Daily Track'}
+            </Text>
+
+            <View style={styles.catalystDivider} />
+
+            <Text style={styles.catalystDescription}>
+              "The first domino in your evolution. Master this, and the sky becomes your limit."
+            </Text>
+          </View>
+        </FadeInView>
+
+        {/* Action Section */}
+        <FadeInView style={{ marginBottom: 50, alignItems: 'center' }} yOffset={20}>
+          <Pressable
+            style={[styles.premiumButton, { width: '100%' }]}
+            onPress={onActivate}
+          >
+            <View style={styles.buttonCenterContent}>
+              <Text style={styles.premiumButtonText}>ACTIVATE CATALYST</Text>
+              <Feather name="zap" size={16} color="#000" style={{ marginLeft: 10 }} />
+            </View>
+          </Pressable>
+          <Text style={styles.activationHint}>55 days until total transformation</Text>
+        </FadeInView>
+      </View>
+    </View>
+  );
+};
+
+const QuestionScreen = ({ title, options, currentStep, next, progress, onNext }: any) => (
+  <View style={[styles.screen, { backgroundColor: '#000' }]}>
+    <Image
+      source={require('./assets/pattern_bg.png')}
+      style={[StyleSheet.absoluteFill, { opacity: 0.05 }]}
+      resizeMode="repeat"
+    />
+    <LinearGradient
+      colors={['rgba(43, 144, 143, 0.1)', 'transparent']}
+      style={StyleSheet.absoluteFill}
+    />
+    <FadeInView style={styles.header} yOffset={25}>
+      <ProgressBar progress={progress} />
+      <AnimatedText text={title} style={[styles.questionTitle, { color: '#fff' }]} />
+    </FadeInView>
+    <FadeInView style={{ flex: 1 }} yOffset={30}>
+      <ScrollView contentContainerStyle={styles.optionsContainer} showsVerticalScrollIndicator={false}>
+        {options.map((option: any) => (
+          <Pressable
+            key={option.id}
+            style={[styles.optionCard, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)' }]}
+            onPress={() => onNext(currentStep, next, option.id)}
+          >
+            <Text style={styles.optionEmoji}>{option.emoji}</Text>
+            <Text style={[styles.optionText, { color: '#fff' }]}>{option.title}</Text>
+            <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.3)" />
+          </Pressable>
+        ))}
+      </ScrollView>
+    </FadeInView>
+  </View>
+);
+
+const NotificationScreen = ({ progress, notificationTime, showTimePicker, onTimePress, onTimeChange, onConfirm }: any) => (
+  <View style={[styles.screen, { backgroundColor: '#000' }]}>
+    <Image
+      source={require('./assets/pattern_bg.png')}
+      style={[StyleSheet.absoluteFill, { opacity: 0.05 }]}
+      resizeMode="repeat"
+    />
+    <LinearGradient
+      colors={['rgba(43, 144, 143, 0.1)', 'transparent']}
+      style={StyleSheet.absoluteFill}
+    />
+    <FadeInView style={styles.header} yOffset={25}>
+      <ProgressBar progress={progress} />
+      <AnimatedText text={"When should we\nremind you?"} style={[styles.questionTitle, { color: '#fff' }]} />
+      <Text style={[styles.questionSubtitle, { color: 'rgba(255,255,255,0.5)' }]}>Timing is key for consistency. Most users prefer morning reminders.</Text>
+    </FadeInView>
+
+    <FadeInView style={styles.timePickerContainer} yOffset={30}>
+      {Platform.OS === 'android' && (
+        <Pressable style={[styles.timeDisplay, { backgroundColor: 'rgba(255,255,255,0.05)' }]} onPress={onTimePress}>
+          <Text style={styles.timeText}>
+            {notificationTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </Pressable>
+      )}
+
+      {showTimePicker && (
+        <DateTimePicker
+          value={notificationTime}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onTimeChange}
+          themeVariant="dark"
+        />
+      )}
+    </FadeInView>
+
+    <FadeInView style={styles.footer} yOffset={20}>
+      <Pressable
+        style={[styles.button, { backgroundColor: '#fff' }]}
+        onPress={onConfirm}
+      >
+        <Text style={[styles.buttonText, { color: '#000' }]}>Enable Notifications</Text>
+      </Pressable>
+    </FadeInView>
+  </View>
+);
+
+const LoadingScreen = ({ transformationType }: { transformationType: string }) => (
+  <View style={[styles.screen, styles.center, { backgroundColor: '#000' }]}>
+    <Animated.View style={styles.loadingCircle} />
+    <Text style={[styles.loadingText, { color: 'rgba(255,255,255,0.6)' }]}>Tailoring your {transformationType || 'personal'} journey...</Text>
+  </View>
+);
+
+// --- Main App ---
 
 export default function App() {
+  const [step, setStep] = useState<OnboardingStep>('intro1');
+  const [onboarding, setOnboarding] = useState<OnboardingData>({
+    nihilistReason: '',
+    transformationType: '',
+    habitFocus: [],
+    timeline: 55,
+    reminderTime: '',
+    startDate: new Date(),
+    day1Habits: [
+      { id: '1', title: 'Exercise', emoji: '💪' },
+      { id: '2', title: 'Meditation', emoji: '🧘' },
+      { id: '3', title: 'Sleep (10pm-6am)', emoji: '🌙' },
+    ],
+  });
+  const [notificationTime, setNotificationTime] = useState(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(Platform.OS === 'ios');
+
+  const [isReady, setIsReady] = useState(false);
+  const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+  const [newHabitTitle, setNewHabitTitle] = useState('');
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  const panY = useRef(new Animated.Value(height)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isAddModalVisible) {
+      // Entry Animation
+      Animated.parallel([
+        Animated.spring(panY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 40,
+          friction: 8
+        }),
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true
+        })
+      ]).start();
+    }
+  }, [isAddModalVisible]);
+
+  const resetPanY = () => {
+    Animated.spring(panY, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 40,
+      friction: 8
+    }).start();
+  };
+
+  const consolidatedClose = () => {
+    Animated.parallel([
+      Animated.timing(panY, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true
+      })
+    ]).start(() => {
+      setIsAddModalVisible(false);
+    });
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dy > 10;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          panY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 120 || gestureState.vy > 0.5) {
+          consolidatedClose();
+        } else {
+          resetPanY();
+        }
+      },
+    })
+  ).current;
+
+  const getAutoEmoji = (title: string) => {
+    const t = title.toLowerCase();
+    if (t.includes('run') || t.includes('jog') || t.includes('walk')) return '🏃';
+    if (t.includes('read') || t.includes('book') || t.includes('study')) return '📚';
+    if (t.includes('water') || t.includes('drink') || t.includes('hydrate')) return '💧';
+    if (t.includes('gym') || t.includes('workout') || t.includes('train') || t.includes('physic')) return '💪';
+    if (t.includes('meditat') || t.includes('zen') || t.includes('breath') || t.includes('yoga')) return '🧘';
+    if (t.includes('sleep') || t.includes('bed') || t.includes('night')) return '😴';
+    if (t.includes('eat') || t.includes('food') || t.includes('meal') || t.includes('diet')) return '🍎';
+    if (t.includes('cod') || t.includes('program') || t.includes('dev')) return '💻';
+    if (t.includes('money') || t.includes('save') || t.includes('invest') || t.includes('budget')) return '💰';
+    if (t.includes('pray') || t.includes('spirit') || t.includes('god')) return '🙏';
+    if (t.includes('clean') || t.includes('room') || t.includes('house')) return '🧹';
+    if (t.includes('write') || t.includes('journal') || t.includes('diar')) return '✍️';
+    if (t.includes('art') || t.includes('draw') || t.includes('paint')) return '🎨';
+    if (t.includes('music') || t.includes('play') || t.includes('sing')) return '🎵';
+    if (t.includes('smoke') || t.includes('quit') || t.includes('stop')) return '🚭';
+    return '✨'; // Default premium icon
+  };
+
+  useEffect(() => {
+    async function prepare() {
+      try {
+        const imageAssets = [
+          require('./assets/nihilist_penguin.png'),
+          require('./assets/opium_bird.png'),
+          require('./assets/welcome_visual.png'),
+          require('./assets/pattern_bg.png'),
+          require('./assets/success_moment.png'),
+          require('./assets/transformation_icons.png'),
+        ];
+
+        const fontAssets = {
+          'Garet-Heavy': require('./Fonts/Garet-Heavy.ttf'),
+          'Garet-Book': require('./Fonts/Garet-Book.ttf'),
+        };
+
+        const cacheImages = imageAssets.map(image => {
+          return Asset.fromModule(image).downloadAsync();
+        });
+
+        const cacheFonts = Font.loadAsync(fontAssets);
+
+        await Promise.all([...cacheImages, cacheFonts]);
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setIsReady(true);
+      }
+    }
+
+    prepare();
+  }, []);
+
+  if (!isReady) return null;
+
+  const nextStep = (currentStep: OnboardingStep, next: OnboardingStep, answer?: any) => {
+    if (answer !== undefined) {
+      setOnboarding(prev => {
+        const newData = { ...prev };
+        if (currentStep === 'q1') newData.nihilistReason = answer;
+        if (currentStep === 'q2') {
+          newData.transformationType = answer;
+          const selected = Q2_OPTIONS.find(o => o.id === answer);
+          if (selected) {
+            newData.day1Habits = [...prev.day1Habits, { id: 'suggested', title: selected.suggestion, emoji: '✨' }];
+          }
+        }
+        if (currentStep === 'q3') {
+          // Toggle functionality for multiple focus
+          const exists = prev.habitFocus.includes(answer);
+          newData.habitFocus = exists
+            ? prev.habitFocus.filter(a => a !== answer)
+            : [...prev.habitFocus, answer];
+        }
+        if (currentStep === 'q4') newData.timeline = answer;
+        if (currentStep === 'q5') newData.reminderTime = answer;
+
+        return newData;
+      });
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setStep(next);
+  };
+
+  const toggleHabit = (id: string) => {
+    setOnboarding(prev => ({
+      ...prev,
+      day1Habits: prev.day1Habits.map(h =>
+        h.id === id ? { ...h, completed: !h.completed } : h
+      )
+    }));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const renderIntro1 = () => (
+    <CinematicIntro
+      imageSource={require('./assets/nihilist_penguin.png')}
+      tag="PART I"
+      title={"THE NIHILIST\nPENGUIN"}
+      caption={'"You\'re walking away from everything.\nNo direction. No meaning. No why."'}
+      buttonText="CONTINUE WALK"
+      buttonIcon="arrow-right"
+      onPress={() => setStep('intro2')}
+    />
+  );
+
+  const renderIntro2 = () => (
+    <CinematicIntro
+      imageSource={require('./assets/opium_bird.png')}
+      tag="PART II"
+      title={"THE\nAWAKENING"}
+      caption={'"In 55 days, you become something different.\nThe Opium Bird. Enlightened. Transformed."'}
+      buttonText="I HAVE a REASON"
+      buttonIcon="zap"
+      onPress={() => setStep('welcome')}
+    />
+  );
+
+  const renderWelcome = () => (
+    <CinematicIntro
+      imageSource={require('./assets/welcome_visual.png')}
+      tag="READY?"
+      title={"YOUR\nTRANSFORMATION"}
+      caption={'"Build Life-Changing Habits.\nJoin 100,000+ people improving daily."'}
+      buttonText="GET STARTED"
+      buttonIcon="arrow-right"
+      onPress={() => nextStep('welcome', 'q1')}
+    />
+  );
+
+  const renderDashboard = () => (
+    <View style={[styles.screen, { backgroundColor: '#000' }]}>
+      <Image
+        source={require('./assets/pattern_bg.png')}
+        style={[StyleSheet.absoluteFill, { opacity: 0.1 }]}
+        resizeMode="repeat"
+      />
+      <LinearGradient
+        colors={['rgba(43, 144, 143, 0.1)', 'transparent']}
+        style={StyleSheet.absoluteFill}
+      />
+
+      <View style={[styles.header, { paddingTop: 60 }]}>
+        <Text style={[styles.cinematicTag, { marginBottom: 4 }]}>EVOLUTION TRACKER</Text>
+        <Text style={[styles.dashboardTitle, { color: '#fff' }]}>Day 1 of {onboarding.timeline}</Text>
+      </View>
+
+      <ScrollView style={{ flex: 1, padding: 20 }}>
+        {/* Main Goal Card - Back in Dashboard */}
+        <FadeInView delay={200}>
+          <View style={styles.premiumMainCard}>
+            <View style={styles.premiumMainBadge}>
+              <Text style={styles.premiumMainBadgeText}>CURRENT PHASE</Text>
+            </View>
+            <Text style={styles.premiumMainTitle}>Nihilist → Opium Bird</Text>
+            <View style={styles.premiumProgressContainer}>
+              <View style={[styles.premiumProgressBar, { width: '15%' }]} />
+            </View>
+            <Text style={styles.premiumProgressText}>15% Transcendence Complete</Text>
+          </View>
+        </FadeInView>
+
+        {/* Habit List Section */}
+        <FadeInView delay={400} style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Daily Mantras</Text>
+        </FadeInView>
+
+        <View style={styles.habitGrid}>
+          {onboarding.day1Habits.map((habit, index) => (
+            <FadeInView key={habit.id} delay={600 + index * 100}>
+              <Pressable
+                style={[
+                  styles.habitGlassCard,
+                  habit.completed && { borderColor: 'rgba(43, 144, 143, 0.3)', backgroundColor: 'rgba(43, 144, 143, 0.05)' }
+                ]}
+                onPress={() => toggleHabit(habit.id)}
+              >
+                <View style={[styles.habitIconContainer, habit.completed && { backgroundColor: 'rgba(43, 144, 143, 0.2)' }]}>
+                  <Text style={[styles.habitIconEmoji, habit.completed && { opacity: 0.5 }]}>{habit.emoji}</Text>
+                </View>
+                <View style={styles.habitCardInfo}>
+                  <Text style={[styles.habitCardTitle, habit.completed && { color: 'rgba(255,255,255,0.3)', textDecorationLine: 'line-through' }]}>
+                    {habit.title}
+                  </Text>
+                  <Text style={[styles.habitCardStatus, habit.completed && { color: PRIMARY_COLOR }]}>
+                    {habit.completed ? 'Mastered today' : 'Daily Commitment'}
+                  </Text>
+                </View>
+                <View style={[
+                  styles.habitCheckCircle,
+                  habit.completed && { backgroundColor: PRIMARY_COLOR, borderColor: PRIMARY_COLOR }
+                ]}>
+                  <Feather name="check" size={16} color={habit.completed ? "#fff" : "rgba(255,255,255,0.1)"} />
+                </View>
+              </Pressable>
+            </FadeInView>
+          ))}
+        </View>
+
+        <FadeInView delay={1000} style={styles.quoteSeparator} />
+
+        <FadeInView delay={1200} style={styles.zenQuoteContainer}>
+          <Feather name="anchor" size={20} color={PRIMARY_COLOR} style={{ marginBottom: 16 }} />
+          <Text style={styles.zenQuoteText}>
+            "The mountains aren't torture.{"\n"}They're just {onboarding.timeline} days away."
+          </Text>
+        </FadeInView>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      <View style={[styles.navbar, { backgroundColor: '#000', borderTopColor: 'rgba(255,255,255,0.1)', height: Platform.OS === 'ios' ? 90 : 70 }]}>
+        <Pressable onPress={() => setStep('dashboard')}>
+          <Feather name="home" size={24} color={step === 'dashboard' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
+        </Pressable>
+        <Pressable
+          style={styles.navPlusButton}
+          onPress={() => setIsAddModalVisible(true)}
+        >
+          <Feather name="plus" size={30} color="#000" />
+        </Pressable>
+        <Pressable onPress={() => setStep('stats')}>
+          <Feather name="bar-chart-2" size={24} color={step === 'stats' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  const renderStats = () => (
+    <View style={[styles.screen, { backgroundColor: '#000' }]}>
+      <Image
+        source={require('./assets/pattern_bg.png')}
+        style={[StyleSheet.absoluteFill, { opacity: 0.1 }]}
+        resizeMode="repeat"
+      />
+
+      <View style={[styles.header, { paddingTop: 60 }]}>
+        <Text style={[styles.cinematicTag, { marginBottom: 4 }]}>ANALYTICS</Text>
+        <Text style={[styles.dashboardTitle, { color: '#fff' }]}>Transcendence</Text>
+      </View>
+
+      <ScrollView style={{ flex: 1, padding: 20 }}>
+        {/* Momentum Chart Section */}
+        <FadeInView delay={200} style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Weekly Momentum</Text>
+        </FadeInView>
+
+        <FadeInView delay={400} style={[styles.statGlassCard, { height: 180, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingBottom: 30 }]}>
+          {[40, 70, 45, 90, 65, 80, 50].map((h, i) => (
+            <View key={i} style={{ alignItems: 'center' }}>
+              <View style={{ width: 12, height: h, backgroundColor: i === 6 ? PRIMARY_COLOR : 'rgba(255,255,255,0.1)', borderRadius: 6 }} />
+              <Text style={[styles.statLabel, { fontSize: 10, marginTop: 8 }]}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}</Text>
+            </View>
+          ))}
+        </FadeInView>
+
+        {/* Quick Stats Section - Moved from Dashboard */}
+        <View style={[styles.statsRow, { marginTop: 30 }]}>
+          <FadeInView delay={600} style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}>
+            <Text style={styles.statValue}>1</Text>
+            <Text style={[styles.statLabel, { color: 'rgba(255,255,255,0.6)' }]}>Day Streak</Text>
+          </FadeInView>
+          <FadeInView delay={800} style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}>
+            <Text style={styles.statValue}>{onboarding.timeline}</Text>
+            <Text style={[styles.statLabel, { color: 'rgba(255,255,255,0.6)' }]}>Days to Bird</Text>
+          </FadeInView>
+        </View>
+
+        {/* Visual Journey Tracker */}
+        <FadeInView delay={1000} style={[styles.journeyCard, { backgroundColor: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, marginTop: 30 }]}>
+          <Text style={styles.journeyTitle}>YOUR EVOLUTION</Text>
+          <View style={styles.journeyContainer}>
+            <View style={[styles.journeyLine, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
+            <View style={[styles.journeyStep, styles.journeyStepActive]}>
+              <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: PRIMARY_COLOR }]}>
+                <ExpoImage source={require('./assets/transformation_icons.png')} style={styles.journeyIcon0} cachePolicy="memory-disk" />
+              </View>
+              <Text style={[styles.journeyStepLabelHeader, { color: '#fff' }]}>Day 1</Text>
+              <Text style={styles.journeyStepLabelSub}>Nihilist</Text>
+            </View>
+            <View style={styles.journeyStep}>
+              <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                <ExpoImage source={require('./assets/transformation_icons.png')} style={styles.journeyIcon1} cachePolicy="memory-disk" />
+              </View>
+              <Text style={[styles.journeyStepLabelHeader, { color: 'rgba(255,255,255,0.4)' }]}>Day 15</Text>
+            </View>
+            <View style={styles.journeyStep}>
+              <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                <ExpoImage source={require('./assets/transformation_icons.png')} style={styles.journeyIcon2} cachePolicy="memory-disk" />
+              </View>
+              <Text style={[styles.journeyStepLabelHeader, { color: 'rgba(255,255,255,0.4)' }]}>Day 30</Text>
+            </View>
+            <View style={styles.journeyStep}>
+              <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                <ExpoImage source={require('./assets/transformation_icons.png')} style={styles.journeyIcon3} cachePolicy="memory-disk" />
+              </View>
+              <Text style={[styles.journeyStepLabelHeader, { color: 'rgba(255,255,255,0.4)' }]}>Day {onboarding.timeline}</Text>
+            </View>
+          </View>
+        </FadeInView>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      <View style={[styles.navbar, { backgroundColor: '#000', borderTopColor: 'rgba(255,255,255,0.1)', height: Platform.OS === 'ios' ? 90 : 70 }]}>
+        <Pressable onPress={() => setStep('dashboard')}>
+          <Feather name="home" size={24} color={step === 'dashboard' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
+        </Pressable>
+        <Pressable
+          style={styles.navPlusButton}
+          onPress={() => { }}
+        >
+          <Feather name="plus" size={30} color="#000" />
+        </Pressable>
+        <Pressable onPress={() => setStep('stats')}>
+          <Feather name="bar-chart-2" size={24} color={step === 'stats' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
+        </Pressable>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
+      <StatusBar style={['intro1', 'intro2', 'success', 'dashboard', 'stats', 'welcome'].includes(step) ? 'light' : 'dark'} />
+
+      <Modal
+        visible={isAddModalVisible}
+        animationType="none"
+        transparent={true}
+        onRequestClose={consolidatedClose}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: 'rgba(0,0,0,0.6)', opacity: overlayOpacity }
+            ]}
+          />
+          <Pressable style={StyleSheet.absoluteFill} onPress={consolidatedClose} />
+          <Animated.View
+            style={[
+              styles.iosSheetCard,
+              { transform: [{ translateY: panY }] }
+            ]}
+            {...panResponder.panHandlers}
+          >
+            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={styles.iosGrabber} />
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.modalBodyContent}
+            >
+              <View style={{ flex: 1, alignItems: 'center', paddingTop: 20 }}>
+                <Text style={styles.modalSheetTitle}>New Habit</Text>
+
+                <View style={styles.modalInputWrapper}>
+                  <TextInput
+                    style={styles.modalSheetInput}
+                    placeholder="What's your goal?"
+                    placeholderTextColor="rgba(255,255,255,0.2)"
+                    value={newHabitTitle}
+                    onChangeText={setNewHabitTitle}
+                    autoFocus={false}
+                    selectionColor={PRIMARY_COLOR}
+                    returnKeyType="done"
+                    onSubmitEditing={() => {
+                      if (newHabitTitle.trim()) {
+                        const icon = getAutoEmoji(newHabitTitle);
+                        setOnboarding(prev => ({
+                          ...prev,
+                          day1Habits: [
+                            ...prev.day1Habits,
+                            { id: Date.now().toString(), title: newHabitTitle, emoji: icon }
+                          ]
+                        }));
+                        setNewHabitTitle('');
+                        consolidatedClose();
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      }
+                    }}
+                  />
+                  <View style={styles.modalInputGlow} />
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {step === 'intro1' && renderIntro1()}
+      {step === 'intro2' && renderIntro2()}
+      {step === 'welcome' && renderWelcome()}
+      {step === 'q1' && (
+        <QuestionScreen
+          title={"Why are you\nhere?"}
+          options={Q1_OPTIONS}
+          currentStep="q1"
+          next="q2"
+          progress={0.2}
+          onNext={nextStep}
+        />
+      )}
+      {step === 'q2' && (
+        <QuestionScreen
+          title={"Choose your\nfocus area"}
+          options={Q2_OPTIONS}
+          currentStep="q2"
+          next="q3"
+          progress={0.4}
+          onNext={nextStep}
+        />
+      )}
+      {step === 'q3' && (
+        <QuestionScreen
+          title={"What is your\nbiggest challenge?"}
+          options={Q3_OPTIONS}
+          currentStep="q3"
+          next="q4"
+          progress={0.6}
+          onNext={nextStep}
+        />
+      )}
+      {step === 'q4' && (
+        <QuestionScreen
+          title={"How many habits\nto track?"}
+          options={Q4_OPTIONS}
+          currentStep="q4"
+          next="q5"
+          progress={0.7}
+          onNext={nextStep}
+        />
+      )}
+      {step === 'q5' && (
+        <NotificationScreen
+          progress={0.8}
+          notificationTime={notificationTime}
+          showTimePicker={showTimePicker}
+          onTimePress={() => setShowTimePicker(true)}
+          onTimeChange={(event: any, selectedDate: any) => {
+            if (Platform.OS === 'android') setShowTimePicker(false);
+            if (selectedDate) setNotificationTime(selectedDate);
+          }}
+          onConfirm={async () => {
+            const { status } = await Notifications.requestPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Notifications', 'Please enable notifications to stay on track!');
+            }
+            const timeStr = notificationTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            nextStep('q5', 'loading', timeStr);
+            setTimeout(() => setStep('firstHabit'), 2500);
+          }}
+        />
+      )}
+      {step === 'loading' && <LoadingScreen transformationType={onboarding.transformationType} />}
+      {step === 'firstHabit' && <FirstHabitScreen onboarding={onboarding} onActivate={() => setStep('success')} />}
+      {step === 'success' && <SuccessScreen onDashboard={() => setStep('dashboard')} />}
+      {step === 'dashboard' && renderDashboard()}
+      {step === 'stats' && renderStats()}
     </View>
   );
 }
@@ -14,7 +960,789 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  screen: {
+    flex: 1,
+  },
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  welcomeImage: {
+    width: width,
+    height: height * 0.6,
+  },
+  welcomeContent: {
+    flex: 1,
+    padding: 30,
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+  },
+  welcomeTitle: {
+    fontSize: 42,
+    fontFamily: 'Garet-Heavy',
+    color: '#000',
+    lineHeight: 48,
+  },
+  welcomeSubtitle: {
+    fontSize: 18,
+    fontFamily: 'Garet-Book',
+    color: '#666',
+    marginTop: 16,
+    marginBottom: 40,
+  },
+  header: {
+    paddingTop: 80,
+    paddingHorizontal: 30,
+    marginBottom: 20,
+  },
+  progressContainer: {
+    height: 6,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 3,
+    width: 60,
+    marginBottom: 30,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 3,
+  },
+  questionTitle: {
+    fontSize: 32,
+    fontFamily: 'Garet-Heavy',
+    lineHeight: 38,
+    marginBottom: 12,
+    color: '#fff',
+  },
+  questionSubtitle: {
+    fontSize: 16,
+    fontFamily: 'Garet-Book',
+    lineHeight: 24,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  optionsContainer: {
+    paddingHorizontal: 30,
+    paddingBottom: 40,
+  },
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 24,
+    borderRadius: 24,
+    marginBottom: 16,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  optionEmoji: {
+    fontSize: 28,
+    marginRight: 20,
+  },
+  optionText: {
+    flex: 1,
+    fontSize: 18,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+  },
+  timePickerContainer: {
+    padding: 30,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  timeDisplay: {
+    padding: 30,
+    borderRadius: 24,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  timeText: {
+    fontSize: 48,
+    fontFamily: 'Garet-Heavy',
+    color: PRIMARY_COLOR,
+  },
+  footer: {
+    padding: 30,
+    paddingBottom: Platform.OS === 'ios' ? 50 : 30,
+  },
+  button: {
+    backgroundColor: PRIMARY_COLOR,
+    paddingVertical: 18,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: PRIMARY_COLOR,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontFamily: 'Garet-Heavy',
+  },
+  loadingCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 4,
+    borderColor: PRIMARY_COLOR,
+    borderTopColor: 'transparent',
+    marginBottom: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  tag: {
+    backgroundColor: PRIMARY_COLOR + '20',
+    color: PRIMARY_COLOR,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    fontSize: 12,
+    fontFamily: 'Garet-Heavy',
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  suggestionCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 30,
+    borderRadius: 30,
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.1,
+    shadowRadius: 30,
+    elevation: 10,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+  },
+  suggestionEmoji: {
+    fontSize: 60,
+    marginBottom: 20,
+  },
+  suggestionText: {
+    fontSize: 28,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  suggestionSub: {
+    fontSize: 16,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  dashboardTitle: {
+    fontSize: 28,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+  },
+  dashboardSubtitle: {
+    fontSize: 16,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  habitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 16,
+    borderRadius: 24,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+  },
+  habitIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  habitTitle: {
+    fontSize: 18,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+  },
+  habitTime: {
+    fontSize: 14,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.4)',
+    marginTop: 2,
+  },
+  checkButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: PRIMARY_COLOR,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 20,
+    borderRadius: 24,
+    marginRight: 10,
+    alignItems: 'center',
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+  },
+  navbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  successIconBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  introContainer: {
+    paddingTop: 80,
+    paddingHorizontal: 30,
+    alignItems: 'center',
+  },
+  introContentLayout: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: 40,
+    paddingTop: 60,
+    paddingBottom: 25,
+  },
+  introHeaderSection: {
+    alignItems: 'flex-start',
+    zIndex: 2,
+    marginTop: 20,
+  },
+  introFooterSection: {
+    alignItems: 'flex-start',
+    zIndex: 2,
+    marginBottom: 10,
+  },
+  cinematicBgContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+    overflow: 'hidden',
+  },
+  introImageEpic: {
+    width: width,
+    height: height * 1.1,
+    top: 40,
+    opacity: 0.85,
+  },
+  cinematicTag: {
+    color: PRIMARY_COLOR,
+    fontFamily: 'Garet-Heavy',
+    fontSize: 10,
+    letterSpacing: 4,
+    marginBottom: 8,
+  },
+  cinematicTitle: {
+    color: '#fff',
+    fontFamily: 'Garet-Heavy',
+    fontSize: 44,
+    lineHeight: 50,
+    letterSpacing: -1,
+  },
+  cinematicCaption: {
+    color: 'rgba(255,255,255,0.7)',
+    fontFamily: 'Garet-Book',
+    fontSize: 18,
+    lineHeight: 28,
+    fontStyle: 'italic',
+    marginBottom: 40,
+  },
+  dividerSmall: {
+    width: 40,
+    height: 2,
+    backgroundColor: PRIMARY_COLOR,
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  premiumButton: {
+    backgroundColor: '#fff',
+    height: 58,
+    borderRadius: 30,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 35,
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  buttonCenterContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navPlusButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -40,
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  premiumButtonText: {
+    color: '#000',
+    fontFamily: 'Garet-Heavy',
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+  introTag: {
+    color: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    fontSize: 10,
+    fontFamily: 'Garet-Heavy',
+    marginBottom: 16,
+    overflow: 'hidden',
+    letterSpacing: 2,
+  },
+  introTitle: {
+    fontSize: 32,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    textAlign: 'center',
+    lineHeight: 38,
+  },
+  introImage: {
+    flex: 1,
+    width: width,
+    height: width,
+  },
+  introFooter: {
+    padding: 30,
+    paddingBottom: Platform.OS === 'ios' ? 60 : 40,
+  },
+  introCaption: {
+    fontSize: 18,
+    fontFamily: 'Garet-Book',
+    color: '#bbb',
+    textAlign: 'center',
+    marginBottom: 40,
+    lineHeight: 26,
+    fontStyle: 'italic',
+  },
+  premiumMainCard: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 32,
+    padding: 30,
+    marginBottom: 35,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  premiumMainBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: PRIMARY_COLOR,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  premiumMainBadgeText: {
+    color: '#000',
+    fontSize: 10,
+    fontFamily: 'Garet-Heavy',
+    letterSpacing: 1,
+  },
+  premiumMainTitle: {
+    fontSize: 24,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    marginBottom: 24,
+  },
+  premiumProgressContainer: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 2,
+    marginBottom: 12,
+  },
+  premiumProgressBar: {
+    height: '100%',
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 2,
+  },
+  premiumProgressText: {
+    fontSize: 12,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+  },
+  habitGrid: {
+    gap: 16,
+    marginBottom: 30,
+  },
+  habitGlassCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 18,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  habitIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  habitIconEmoji: {
+    fontSize: 24,
+  },
+  habitCardInfo: {
+    flex: 1,
+  },
+  habitCardTitle: {
+    fontSize: 18,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  habitCardStatus: {
+    fontSize: 12,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.4)',
+  },
+  habitCheckCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zenQuoteContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    marginBottom: 40,
+  },
+  zenQuoteText: {
+    fontSize: 16,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.4)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    lineHeight: 24,
+  },
+  quoteSeparator: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 24,
+  },
+  statGlassCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 32,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  statValue: {
+    fontSize: 32,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+  },
+  statLabel: {
+    fontSize: 12,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 4,
+  },
+  imageOverlayContainer: {
+    height: height * 0.45,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  catalystBadge: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 16,
+  },
+  catalystBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Garet-Heavy',
+    color: PRIMARY_COLOR,
+    letterSpacing: 1,
+  },
+  catalystMainCard: {
+    width: width * 0.85,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 35,
+    padding: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    shadowColor: PRIMARY_COLOR,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+  },
+  catalystIconOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  catalystIconInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: PRIMARY_COLOR,
+  },
+  catalystHabitTitle: {
+    fontSize: 30,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  catalystDivider: {
+    width: 40,
+    height: 2,
+    backgroundColor: PRIMARY_COLOR,
+    opacity: 0.4,
+    marginBottom: 20,
+  },
+  catalystDescription: {
+    fontSize: 15,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center',
+    lineHeight: 22,
+    fontStyle: 'italic',
+  },
+  activationHint: {
+    fontSize: 11,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.3)',
+    marginTop: 16,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  journeyCard: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 32,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  journeyTitle: {
+    fontSize: 12,
+    fontFamily: 'Garet-Heavy',
+    color: 'rgba(255,255,255,0.4)',
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  journeyContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  journeyLine: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    right: 20,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  journeyStep: {
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  journeyStepActive: {
+    transform: [{ scale: 1.15 }],
+  },
+  iconCropContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  journeyIcon0: { width: 80, height: 80, position: 'absolute', top: 0, left: -1 },
+  journeyIcon1: { width: 85, height: 85, position: 'absolute', top: -1, left: -45 },
+  journeyIcon2: { width: 85, height: 85, position: 'absolute', top: -44, left: -1 },
+  journeyIcon3: { width: 85, height: 85, position: 'absolute', top: -44, left: -45 },
+  journeyStepLabelHeader: {
+    fontSize: 10,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+  },
+  journeyStepLabelSub: {
+    fontSize: 9,
+    fontFamily: 'Garet-Book',
+    marginTop: 2,
+    color: PRIMARY_COLOR,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  iosSheetCard: {
+    height: height * 0.92,
+    backgroundColor: 'transparent',
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
+    paddingTop: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  iosGrabber: {
+    width: 40,
+    height: 5,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalBodyContent: {
+    flex: 1,
+    paddingHorizontal: 30,
+    paddingBottom: Platform.OS === 'ios' ? 60 : 40,
+  },
+  modalAddButton: {
+    height: 60,
+    width: '100%',
+    borderRadius: 30,
+    overflow: 'hidden',
+    shadowColor: PRIMARY_COLOR,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalAddButtonGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalAddButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: 'Garet-Heavy',
+    letterSpacing: 2,
+    marginRight: 10,
+  },
+  modalSheetTitle: {
+    fontSize: 28,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    marginBottom: 40,
+    textAlign: 'center',
+  },
+  modalInputWrapper: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalSheetInput: {
+    fontSize: 24,
+    fontFamily: 'Garet-Book',
+    color: '#fff',
+    textAlign: 'center',
+    width: '100%',
+    paddingVertical: 15,
+  },
+  modalInputGlow: {
+    height: 1,
+    width: '80%',
+    backgroundColor: PRIMARY_COLOR,
+    shadowColor: PRIMARY_COLOR,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 5,
   },
 });
