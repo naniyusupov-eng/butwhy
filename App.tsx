@@ -28,10 +28,13 @@ type OnboardingStep =
   | 'q2' // Primary area
   | 'q3' // Challenge
   | 'q4' // How many habits
-  | 'q5' // Notification time
+  | 'q5' // Failure reason
+  | 'q6' // Time dedication
+  | 'reminder' // Notification time
   | 'loading' // AI generation simulation
   | 'firstHabit' // Create First Habit
   | 'success' // Success Moment
+  | 'paywall' // Paywall
   | 'dashboard'
   | 'stats';
 
@@ -51,6 +54,7 @@ interface OnboardingData {
   reminderTime: string;
   startDate: Date;
   day1Habits: Habit[];
+  habitHistory: Record<string, string[]>;
 }
 
 // --- Constants ---
@@ -85,7 +89,23 @@ const Q4_OPTIONS = [
   { id: 100, title: '100 Days (Mastery)', emoji: '🔥' },
 ];
 
+const Q5_OPTIONS = [
+  { id: 'chaos', title: 'Morning Chaos', emoji: '🌪️' },
+  { id: 'fatigue', title: 'After Work Fatigue', emoji: '🔋' },
+  { id: 'scroll', title: 'Doom Scrolling', emoji: '📱' },
+  { id: 'lazy', title: 'Weekend Inconsistency', emoji: '🛋️' },
+];
+
+const Q6_OPTIONS = [
+  { id: '5min', title: '5-10 Mins / Day', emoji: '⚡' },
+  { id: '15min', title: '15-30 Mins / Day', emoji: '⏱️' },
+  { id: '30min', title: '30-60 Mins / Day', emoji: '⏳' },
+  { id: '1hr', title: '1+ Hour / Day', emoji: '🏆' },
+];
+
 // --- Components ---
+let styles: any;
+
 
 const ProgressBar = ({ progress }: { progress: number }) => {
   const widthAnim = useRef(new Animated.Value(0)).current;
@@ -168,6 +188,60 @@ const CinematicIntro = ({
   onPress
 }: any) => {
   const zoomAnim = useRef(new Animated.Value(1.3)).current;
+  const buttonOpacity = useRef(new Animated.Value(0)).current;
+  const [displayedTitle, setDisplayedTitle] = useState('');
+  const [displayedCaption, setDisplayedCaption] = useState('');
+  const [isTitleComplete, setIsTitleComplete] = useState(false);
+  const [isCaptionComplete, setIsCaptionComplete] = useState(false);
+
+  useEffect(() => {
+    setDisplayedTitle('');
+    setDisplayedCaption('');
+    setIsTitleComplete(false);
+    setIsCaptionComplete(false);
+    buttonOpacity.setValue(0);
+
+    let currentIndex = 0;
+    const interval = setInterval(() => {
+      if (currentIndex <= title.length) {
+        setDisplayedTitle(title.slice(0, currentIndex));
+        currentIndex++;
+      } else {
+        clearInterval(interval);
+        setIsTitleComplete(true);
+      }
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [title]);
+
+  useEffect(() => {
+    if (isTitleComplete && caption) {
+      let currentIndex = 0;
+      const interval = setInterval(() => {
+        if (currentIndex <= caption.length) {
+          setDisplayedCaption(caption.slice(0, currentIndex));
+          currentIndex++;
+        } else {
+          clearInterval(interval);
+          setIsCaptionComplete(true);
+        }
+      }, 20);
+      return () => clearInterval(interval);
+    } else if (isTitleComplete && !caption) {
+      setIsCaptionComplete(true);
+    }
+  }, [isTitleComplete, caption]);
+
+  useEffect(() => {
+    if (isCaptionComplete) {
+      Animated.timing(buttonOpacity, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true
+      }).start();
+    }
+  }, [isCaptionComplete]);
 
   useEffect(() => {
     const animation = Animated.timing(zoomAnim, {
@@ -198,23 +272,45 @@ const CinematicIntro = ({
       />
 
       <View style={styles.introContentLayout}>
-        <FadeInView style={styles.introHeaderSection} yOffset={30}>
+        <View style={styles.introHeaderSection}>
           <Text style={styles.cinematicTag}>{tag}</Text>
-          <AnimatedText text={title} style={styles.cinematicTitle} />
-        </FadeInView>
+          <View>
+            <AnimatedText text={title} style={[styles.cinematicTitle, { opacity: 0 }]} />
+            <View style={StyleSheet.absoluteFill}>
+              <AnimatedText text={displayedTitle} style={styles.cinematicTitle} />
+            </View>
+          </View>
+        </View>
 
-        <FadeInView style={styles.introFooterSection} yOffset={40}>
-          <View style={styles.dividerSmall} />
-          <AnimatedText text={caption} style={styles.cinematicCaption} />
-          <Pressable style={styles.premiumButton} onPress={onPress}>
-            <Text style={styles.premiumButtonText}>{buttonText}</Text>
-            <Feather name={buttonIcon as any} size={18} color="#000" style={{ marginLeft: 8 }} />
-          </Pressable>
-        </FadeInView>
+        <View style={styles.introFooterSection}>
+          <View style={[styles.dividerSmall, { opacity: isTitleComplete ? 1 : 0 }]} />
+
+          <View>
+            <AnimatedText text={caption} style={[styles.cinematicCaption, { opacity: 0 }]} />
+            {isTitleComplete && (
+              <View style={StyleSheet.absoluteFill}>
+                <AnimatedText text={displayedCaption} style={styles.cinematicCaption} />
+              </View>
+            )}
+          </View>
+
+          <Animated.View style={{ opacity: buttonOpacity }}>
+            <Pressable
+              style={styles.premiumButton}
+              onPress={isCaptionComplete ? onPress : null}
+              disabled={!isCaptionComplete}
+            >
+              <Text style={styles.premiumButtonText}>{buttonText}</Text>
+              <Feather name={buttonIcon as any} size={18} color="#000" style={{ marginLeft: 8 }} />
+            </Pressable>
+          </Animated.View>
+        </View>
       </View>
     </View>
   );
 };
+
+
 
 const SuccessScreen = ({ onDashboard }: { onDashboard: () => void }) => (
   <CinematicIntro
@@ -410,6 +506,172 @@ const LoadingScreen = ({ transformationType }: { transformationType: string }) =
   );
 };
 
+const PaywallScreen = ({ visible, onContinue }: { visible: boolean; onContinue: () => void }) => {
+  const [selectedPlan, setSelectedPlan] = useState('yearly_trial');
+  const [modalY] = useState(new Animated.Value(height));
+
+  const PLANS = [
+    { id: 'weekly_trial', title: 'Weekly Sprint', sub: '$4.99 / Week', mainPrice: '3 DAYS FREE', footer: 'Try Risk Free', badge: null },
+    { id: 'monthly_trial', title: 'Monthly Habit', sub: '$9.99 / Month', mainPrice: '3 DAYS FREE', footer: 'Cancel Anytime', badge: null },
+    { id: 'quarterly', title: 'Quarterly Routine', sub: '$29.99 / Quarter', mainPrice: '$2.49', footer: 'per week', badge: null },
+    { id: 'yearly', title: 'Yearly Evolution', sub: '$59.99 / Year', mainPrice: '$1.15', footer: 'per week', badge: 'POPULAR' },
+    { id: 'lifetime', title: 'Eternal Mindset', sub: 'Lifetime Access', mainPrice: '$149.99', footer: 'one-time', badge: 'LEGACY' },
+  ];
+
+  const FEATURES = [
+    { icon: 'activity', text: 'Infinite Habit Transformation' },
+    { icon: 'trending-up', text: 'Deep Evolution Analytics' },
+    { icon: 'eye', text: 'Cinematic Daily Insights' },
+    { icon: 'shield', text: '100% Evolution Guarantee' },
+  ];
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(modalY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 25,
+        friction: 10
+      }).start();
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal transparent visible={visible} animationType="none">
+      <View style={styles.modalOverlay}>
+        <Animated.View style={[styles.paywallSheet, { transform: [{ translateY: modalY }] }]}>
+          {/* Background Layering */}
+          <Image
+            source={require('./assets/opium_bird.png')}
+            style={[StyleSheet.absoluteFill, { opacity: 0.5 }]}
+          />
+          <BlurView intensity={25} tint="dark" style={StyleSheet.absoluteFill} />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.8)', '#000']}
+            style={StyleSheet.absoluteFill}
+          />
+
+          <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: Platform.OS === 'ios' ? 45 : 20, paddingBottom: 0 }}>
+
+            {/* Close Button Top Right - Simplified */}
+            <Pressable
+              onPress={onContinue}
+              style={{
+                position: 'absolute', top: 55, right: 24,
+                zIndex: 100
+              }}
+            >
+              <Feather name="x" size={24} color="rgba(255,255,255,0.4)" />
+            </Pressable>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}>
+
+              {/* Header Section - Lifted Even Higher */}
+              <View style={{ alignItems: 'center', marginTop: 0, marginBottom: 60 }}>
+                <Text style={{
+                  color: '#fff', fontSize: 38, fontFamily: 'Garet-Heavy',
+                  textAlign: 'center', lineHeight: 42, letterSpacing: -0.5
+                }}>
+                  Unlimited Access
+                </Text>
+              </View>
+
+              {/* Features List Section - Increased margin bottom */}
+              <View style={{ paddingHorizontal: 10, marginBottom: 25, gap: 10 }}>
+                {FEATURES.map((f, i) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 20, alignItems: 'center', marginRight: 12 }}>
+                      <Feather name={f.icon as any} size={16} color={PRIMARY_COLOR} />
+                    </View>
+                    <Text style={{ color: '#fff', fontSize: 13, fontFamily: 'Garet-Book', opacity: 0.8 }}>
+                      {f.text}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Plans Section - Compact Gap */}
+              <View style={{ gap: 8, marginBottom: 20 }}>
+                {PLANS.map((plan) => (
+                  <Pressable
+                    key={plan.id}
+                    style={{
+                      flexDirection: 'row',
+                      backgroundColor: 'rgba(255,255,255,0.03)',
+                      borderRadius: 14,
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderWidth: selectedPlan === plan.id ? 2 : 1,
+                      borderColor: selectedPlan === plan.id ? PRIMARY_COLOR : 'rgba(255,255,255,0.1)',
+                      alignItems: 'center',
+                      position: 'relative'
+                    }}
+                    onPress={() => setSelectedPlan(plan.id)}
+                  >
+                    {plan.badge && (
+                      <View style={{
+                        position: 'absolute', top: -8, right: 20,
+                        backgroundColor: '#ff4b5c', paddingHorizontal: 8,
+                        paddingVertical: 2, borderRadius: 8, zIndex: 10
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 8, fontFamily: 'Garet-Heavy' }}>{plan.badge}</Text>
+                      </View>
+                    )}
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#fff', fontSize: 16, fontFamily: 'Garet-Heavy' }}>{plan.title}</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontFamily: 'Garet-Book' }}>{plan.sub}</Text>
+                    </View>
+
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{
+                        color: plan.mainPrice.includes('FREE') ? PRIMARY_COLOR : '#fff',
+                        fontSize: 16, fontFamily: 'Garet-Heavy'
+                      }}>
+                        {plan.mainPrice}
+                      </Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: 'Garet-Book' }}>{plan.footer}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* CTA Section - Compact height */}
+              <View>
+                <Pressable
+                  style={{
+                    height: 52,
+                    borderRadius: 26,
+                    overflow: 'hidden',
+                  }}
+                  onPress={onContinue}
+                >
+                  <LinearGradient
+                    colors={[PRIMARY_COLOR, '#1e6b6a']}
+                    style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 16, fontFamily: 'Garet-Heavy' }}>START TRAINING NOW</Text>
+                  </LinearGradient>
+                </Pressable>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24, marginTop: 15, marginBottom: 10 }}>
+                  <Pressable hitSlop={10}><Text style={[styles.legalTextMini, { opacity: 0.4 }]}>Terms</Text></Pressable>
+                  <Pressable hitSlop={10}><Text style={[styles.legalTextMini, { opacity: 0.4 }]}>Privacy</Text></Pressable>
+                  <Pressable hitSlop={10}><Text style={[styles.legalTextMini, { opacity: 0.4 }]}>Restore</Text></Pressable>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -426,12 +688,14 @@ export default function App() {
       { id: '2', title: 'Meditation', emoji: '🧘' },
       { id: '3', title: 'Sleep (10pm-6am)', emoji: '🌙' },
     ],
+    habitHistory: {},
   });
   const [notificationTime, setNotificationTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(Platform.OS === 'ios');
 
   const [isReady, setIsReady] = useState(false);
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [newHabitTitle, setNewHabitTitle] = useState('');
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
@@ -610,13 +874,27 @@ export default function App() {
   };
 
   const toggleHabit = (id: string) => {
-    setOnboarding(prev => ({
-      ...prev,
-      day1Habits: prev.day1Habits.map(h =>
-        h.id === id ? { ...h, completed: !h.completed } : h
-      )
-    }));
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const dateKey = selectedDate.toISOString().split('T')[0];
+    setOnboarding(prev => {
+      const currentHistory = prev.habitHistory[dateKey] || [];
+      const isCompleted = currentHistory.includes(id);
+
+      let newHistory;
+      if (isCompleted) {
+        newHistory = currentHistory.filter(hId => hId !== id);
+      } else {
+        newHistory = [...currentHistory, id];
+      }
+
+      return {
+        ...prev,
+        habitHistory: {
+          ...prev.habitHistory,
+          [dateKey]: newHistory
+        }
+      };
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const renderIntro1 = () => (
@@ -673,17 +951,66 @@ export default function App() {
       </View>
 
       <ScrollView style={{ flex: 1, padding: 20 }}>
-        {/* Main Goal Card - Back in Dashboard */}
-        <FadeInView delay={200}>
-          <View style={styles.premiumMainCard}>
-            <View style={styles.premiumMainBadge}>
-              <Text style={styles.premiumMainBadgeText}>CURRENT PHASE</Text>
-            </View>
-            <Text style={styles.premiumMainTitle}>Nihilist → Opium Bird</Text>
-            <View style={styles.premiumProgressContainer}>
-              <View style={[styles.premiumProgressBar, { width: '15%' }]} />
-            </View>
-            <Text style={styles.premiumProgressText}>15% Transcendence Complete</Text>
+        {/* Calendar Section (Sliding Window) */}
+        <FadeInView delay={200} style={{ marginBottom: 30 }}>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.03)', paddingVertical: 15, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 15 }}
+              contentOffset={{ x: (15 * 52) - (width / 2) + 26 + 15, y: 0 }}
+            >
+              {Array.from({ length: 31 }).map((_, i) => {
+                // Centered on Today
+                const d = new Date();
+                d.setDate(d.getDate() - 15 + i);
+
+                const isSelected = d.getDate() === selectedDate.getDate() && d.getMonth() === selectedDate.getMonth() && d.getFullYear() === selectedDate.getFullYear();
+                const isToday = d.getDate() === new Date().getDate() && d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
+
+                return (
+                  <Pressable
+                    key={i}
+                    style={{ alignItems: 'center', marginRight: 12, width: 40, opacity: 1 }}
+                    onPress={() => {
+                      setSelectedDate(new Date(d));
+                      Haptics.selectionAsync();
+                    }}
+                  >
+                    <Text style={{
+                      fontFamily: 'Garet-Book',
+                      color: isSelected ? PRIMARY_COLOR : 'rgba(255,255,255,0.4)',
+                      fontSize: 11,
+                      marginBottom: 8
+                    }}>
+                      {d.toLocaleDateString('en-US', { weekday: 'narrow' })}
+                    </Text>
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 20,
+                      backgroundColor: isSelected ? PRIMARY_COLOR : 'rgba(255,255,255,0.05)',
+                      justifyContent: 'center', alignItems: 'center',
+                      borderWidth: isSelected ? 0 : 1,
+                      borderColor: isSelected ? PRIMARY_COLOR : (isToday ? '#fff' : 'rgba(255,255,255,0.1)'),
+                      shadowColor: isSelected ? PRIMARY_COLOR : '#000',
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: isSelected ? 0.3 : 0,
+                      shadowRadius: 8,
+                      elevation: isSelected ? 5 : 0
+                    }}>
+                      <Text style={{
+                        fontFamily: 'Garet-Heavy',
+                        color: isSelected ? '#000' : '#fff',
+                        fontSize: 14
+                      }}>
+                        {d.getDate()}
+                      </Text>
+                    </View>
+                    {isToday && !isSelected && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#fff', marginTop: 6 }} />}
+                    {isSelected && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: PRIMARY_COLOR, marginTop: 6 }} />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
         </FadeInView>
 
@@ -693,35 +1020,40 @@ export default function App() {
         </FadeInView>
 
         <View style={styles.habitGrid}>
-          {onboarding.day1Habits.map((habit, index) => (
-            <FadeInView key={habit.id} delay={600 + index * 100}>
-              <Pressable
-                style={[
-                  styles.habitGlassCard,
-                  habit.completed && { borderColor: 'rgba(43, 144, 143, 0.3)', backgroundColor: 'rgba(43, 144, 143, 0.05)' }
-                ]}
-                onPress={() => toggleHabit(habit.id)}
-              >
-                <View style={[styles.habitIconContainer, habit.completed && { backgroundColor: 'rgba(43, 144, 143, 0.2)' }]}>
-                  <Text style={[styles.habitIconEmoji, habit.completed && { opacity: 0.5 }]}>{habit.emoji}</Text>
-                </View>
-                <View style={styles.habitCardInfo}>
-                  <Text style={[styles.habitCardTitle, habit.completed && { color: 'rgba(255,255,255,0.3)', textDecorationLine: 'line-through' }]}>
-                    {habit.title}
-                  </Text>
-                  <Text style={[styles.habitCardStatus, habit.completed && { color: PRIMARY_COLOR }]}>
-                    {habit.completed ? 'Mastered today' : 'Daily Commitment'}
-                  </Text>
-                </View>
-                <View style={[
-                  styles.habitCheckCircle,
-                  habit.completed && { backgroundColor: PRIMARY_COLOR, borderColor: PRIMARY_COLOR }
-                ]}>
-                  <Feather name="check" size={16} color={habit.completed ? "#fff" : "rgba(255,255,255,0.1)"} />
-                </View>
-              </Pressable>
-            </FadeInView>
-          ))}
+          {onboarding.day1Habits.map((habit, index) => {
+            const dateKey = selectedDate.toISOString().split('T')[0];
+            const isCompleted = (onboarding.habitHistory[dateKey] || []).includes(habit.id);
+
+            return (
+              <FadeInView key={habit.id} delay={600 + index * 100}>
+                <Pressable
+                  style={[
+                    styles.habitGlassCard,
+                    isCompleted && { borderColor: 'rgba(43, 144, 143, 0.3)', backgroundColor: 'rgba(43, 144, 143, 0.05)' }
+                  ]}
+                  onPress={() => toggleHabit(habit.id)}
+                >
+                  <View style={[styles.habitIconContainer, isCompleted && { backgroundColor: 'rgba(43, 144, 143, 0.2)' }]}>
+                    <Text style={[styles.habitIconEmoji, isCompleted && { opacity: 0.5 }]}>{habit.emoji}</Text>
+                  </View>
+                  <View style={styles.habitCardInfo}>
+                    <Text style={[styles.habitCardTitle, isCompleted && { color: 'rgba(255,255,255,0.3)', textDecorationLine: 'line-through' }]}>
+                      {habit.title}
+                    </Text>
+                    <Text style={[styles.habitCardStatus, isCompleted && { color: PRIMARY_COLOR }]}>
+                      {isCompleted ? 'Mastered today' : 'Daily Commitment'}
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.habitCheckCircle,
+                    isCompleted && { backgroundColor: PRIMARY_COLOR, borderColor: PRIMARY_COLOR }
+                  ]}>
+                    <Feather name="check" size={16} color={isCompleted ? "#fff" : "rgba(255,255,255,0.1)"} />
+                  </View>
+                </Pressable>
+              </FadeInView>
+            );
+          })}
         </View>
 
         <FadeInView delay={1000} style={styles.quoteSeparator} />
@@ -774,6 +1106,20 @@ export default function App() {
       </View>
 
       <ScrollView style={{ flex: 1, padding: 20 }}>
+        {/* Main Goal Card - Moved from Dashboard */}
+        <FadeInView delay={100} style={{ marginBottom: 30 }}>
+          <View style={styles.premiumMainCard}>
+            <View style={styles.premiumMainBadge}>
+              <Text style={styles.premiumMainBadgeText}>CURRENT PHASE</Text>
+            </View>
+            <Text style={styles.premiumMainTitle}>Nihilist → Opium Bird</Text>
+            <View style={styles.premiumProgressContainer}>
+              <View style={[styles.premiumProgressBar, { width: '15%' }]} />
+            </View>
+            <Text style={styles.premiumProgressText}>15% Transcendence Complete</Text>
+          </View>
+        </FadeInView>
+
         {/* Momentum Chart Section */}
         <FadeInView delay={200} style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Weekly Momentum</Text>
@@ -886,73 +1232,7 @@ export default function App() {
     <View style={styles.container}>
       <StatusBar style={['intro1', 'intro2', 'success', 'dashboard', 'stats', 'welcome'].includes(step) ? 'light' : 'dark'} />
 
-      <Modal
-        visible={isAddModalVisible}
-        animationType="none"
-        transparent={true}
-        onRequestClose={consolidatedClose}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: 'rgba(0,0,0,0.6)', opacity: overlayOpacity }
-            ]}
-          />
-          <Pressable style={StyleSheet.absoluteFill} onPress={consolidatedClose} />
-          <Animated.View
-            style={[
-              styles.iosSheetCard,
-              { transform: [{ translateY: panY }] }
-            ]}
-            {...panResponder.panHandlers}
-          >
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-            <View style={styles.iosGrabber} />
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-              keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
-              style={[
-                styles.modalBodyContent,
-                { paddingBottom: isKeyboardVisible ? 20 : (Platform.OS === 'ios' ? 60 : 40) }
-              ]}
-            >
-              <View style={{ flex: 1, alignItems: 'center', paddingTop: 20 }}>
-                <Text style={styles.modalSheetTitle}>New Habit</Text>
 
-                <View style={styles.modalInputWrapper}>
-                  <TextInput
-                    style={styles.modalSheetInput}
-                    placeholder="What's your goal?"
-                    placeholderTextColor="rgba(255,255,255,0.2)"
-                    value={newHabitTitle}
-                    onChangeText={setNewHabitTitle}
-                    autoFocus={true}
-                    selectionColor={PRIMARY_COLOR}
-                    returnKeyType="done"
-                    onSubmitEditing={() => {
-                      if (newHabitTitle.trim()) {
-                        const icon = getAutoEmoji(newHabitTitle);
-                        setOnboarding(prev => ({
-                          ...prev,
-                          day1Habits: [
-                            ...prev.day1Habits,
-                            { id: Date.now().toString(), title: newHabitTitle, emoji: icon }
-                          ]
-                        }));
-                        setNewHabitTitle('');
-                        consolidatedClose();
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      }
-                    }}
-                  />
-                  <View style={styles.modalInputGlow} />
-                </View>
-              </View>
-            </KeyboardAvoidingView>
-          </Animated.View>
-        </View>
-      </Modal>
 
       {step === 'intro1' && renderIntro1()}
       {step === 'intro2' && renderIntro2()}
@@ -993,13 +1273,33 @@ export default function App() {
           options={Q4_OPTIONS}
           currentStep="q4"
           next="q5"
-          progress={0.7}
+          progress={0.6}
           onNext={nextStep}
         />
       )}
       {step === 'q5' && (
-        <NotificationScreen
+        <QuestionScreen
+          title={"When do you\nusually fail?"}
+          options={Q5_OPTIONS}
+          currentStep="q5"
+          next="q6"
+          progress={0.7}
+          onNext={nextStep}
+        />
+      )}
+      {step === 'q6' && (
+        <QuestionScreen
+          title={"How much time\ncan you dedicate?"}
+          options={Q6_OPTIONS}
+          currentStep="q6"
+          next="reminder"
           progress={0.8}
+          onNext={nextStep}
+        />
+      )}
+      {step === 'reminder' && (
+        <NotificationScreen
+          progress={0.9}
           notificationTime={notificationTime}
           showTimePicker={showTimePicker}
           onTimePress={() => setShowTimePicker(true)}
@@ -1013,21 +1313,160 @@ export default function App() {
               Alert.alert('Notifications', 'Please enable notifications to stay on track!');
             }
             const timeStr = notificationTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            nextStep('q5', 'loading', timeStr);
+            nextStep('reminder', 'loading', timeStr);
             setTimeout(() => setStep('firstHabit'), 2500);
           }}
         />
       )}
       {step === 'loading' && <LoadingScreen transformationType={onboarding.transformationType} />}
       {step === 'firstHabit' && <FirstHabitScreen onboarding={onboarding} onActivate={() => setStep('success')} />}
-      {step === 'success' && <SuccessScreen onDashboard={() => setStep('dashboard')} />}
+      {step === 'success' && <SuccessScreen onDashboard={() => setStep('paywall')} />}
+      {step === 'paywall' && (
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {renderDashboard()}
+          <PaywallScreen visible={true} onContinue={() => setStep('dashboard')} />
+        </View>
+      )}
       {step === 'dashboard' && renderDashboard()}
       {step === 'stats' && renderStats()}
+
+      <Modal
+        visible={isAddModalVisible}
+        transparent={true}
+        animationType="none"
+        onRequestClose={consolidatedClose}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: 'rgba(0,0,0,0.85)', opacity: overlayOpacity }
+            ]}
+          />
+          <Pressable style={StyleSheet.absoluteFill} onPress={consolidatedClose} />
+
+          <Animated.View
+            style={[
+              styles.iosSheetCard,
+              {
+                transform: [{ translateY: panY }],
+                backgroundColor: '#0A0A0A',
+                borderWidth: 0,
+                borderTopLeftRadius: 36,
+                borderTopRightRadius: 36,
+                paddingTop: 12
+              }
+            ]}
+            {...panResponder.panHandlers}
+          >
+            <KeyboardAvoidingView
+              behavior="padding"
+              style={{ flex: 1 }}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 50 : 20}
+            >
+
+
+              {/* Premium Grabber */}
+              <View style={{ alignSelf: 'center', width: 36, height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2, marginBottom: 20 }} />
+
+              <ScrollView
+                bounces={false}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 28, paddingTop: 20, paddingBottom: 20 }}
+                style={{ flex: 1 }}
+              >
+                {/* Header Section */}
+                <View style={{ alignItems: 'center', marginBottom: 25 }}>
+                  <Text style={{
+                    color: PRIMARY_COLOR, fontSize: 10, fontFamily: 'Garet-Heavy',
+                    letterSpacing: 2, marginBottom: 8, opacity: 0.8
+                  }}>
+                    NEW HABIT
+                  </Text>
+                  <Text style={{
+                    color: '#fff', fontSize: 24, fontFamily: 'Garet-Heavy',
+                    textAlign: 'center'
+                  }}>
+                    What is your next{'\n'}transformation?
+                  </Text>
+                </View>
+
+                {/* Visual Preview Area - Removed Circle */}
+                <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                  <Text style={{ fontSize: 40 }}>{getAutoEmoji(newHabitTitle) || '⚡'}</Text>
+                </View>
+
+                {/* Input Field */}
+                <View style={{ marginBottom: 40 }}>
+                  <TextInput
+                    style={{
+                      fontSize: 16,
+                      fontFamily: 'Garet-Heavy',
+                      color: '#fff',
+                      textAlign: 'center',
+                      paddingVertical: 15,
+                    }}
+                    placeholder="ENTER HABIT..."
+                    placeholderTextColor="rgba(255,255,255,0.08)"
+                    value={newHabitTitle}
+                    onChangeText={setNewHabitTitle}
+                    autoFocus={false}
+                    selectionColor={PRIMARY_COLOR}
+                    autoCapitalize="words"
+                  />
+                  <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.05)', width: '60%', alignSelf: 'center' }} />
+                </View>
+              </ScrollView>
+
+              {/* Action Button - Pinned to bottom, moves with keyboard */}
+              <View style={{ paddingHorizontal: 28, paddingBottom: Platform.OS === 'ios' ? 40 : 24, gap: 12 }}>
+                <Pressable
+                  onPress={() => {
+                    if (newHabitTitle.trim()) {
+                      const icon = getAutoEmoji(newHabitTitle);
+                      setOnboarding(prev => ({
+                        ...prev,
+                        day1Habits: [
+                          ...prev.day1Habits,
+                          { id: Date.now().toString(), title: newHabitTitle, emoji: icon }
+                        ]
+                      }));
+                      setNewHabitTitle('');
+                      consolidatedClose();
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    }
+                  }}
+                >
+                  <LinearGradient
+                    colors={newHabitTitle.trim() ? [PRIMARY_COLOR, '#1e6b6a'] : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.05)']}
+                    style={{
+                      height: 58, borderRadius: 20,
+                      justifyContent: 'center', alignItems: 'center',
+                      shadowColor: newHabitTitle.trim() ? PRIMARY_COLOR : 'transparent',
+                      shadowOffset: { width: 0, height: 10 },
+                      shadowOpacity: 0.3, shadowRadius: 20
+                    }}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Text style={{
+                      color: newHabitTitle.trim() ? '#fff' : 'rgba(255,255,255,0.2)',
+                      fontSize: 16, fontFamily: 'Garet-Heavy', letterSpacing: 1
+                    }}>
+                      ADD HABIT
+                    </Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </KeyboardAvoidingView>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -1504,6 +1943,169 @@ const styles = StyleSheet.create({
     fontFamily: 'Garet-Book',
     color: 'rgba(255,255,255,0.5)',
   },
+  paywallFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 18,
+    borderRadius: 24,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  paywallFeatureIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(43, 144, 143, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  paywallFeatureTitle: {
+    fontSize: 16,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  paywallFeatureSub: {
+    fontSize: 12,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  planCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  planCardActive: {
+    borderColor: PRIMARY_COLOR,
+    backgroundColor: 'rgba(43, 144, 143, 0.05)',
+  },
+  planTitle: {
+    fontSize: 16,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  planSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.4)',
+  },
+  planBadge: {
+    backgroundColor: PRIMARY_COLOR,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  planBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Garet-Heavy',
+    color: '#000',
+  },
+  planCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  planCheckActive: {
+    backgroundColor: PRIMARY_COLOR,
+    borderColor: PRIMARY_COLOR,
+  },
+  paywallFooter: {
+    padding: 20,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  paywallFooterText: {
+    fontSize: 11,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.3)',
+    letterSpacing: 0.5,
+  },
+  catalystBadge: {
+    borderWidth: 1,
+    borderColor: PRIMARY_COLOR,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  catalystBadgeText: {
+    color: PRIMARY_COLOR,
+    fontFamily: 'Garet-Heavy',
+    fontSize: 10,
+    letterSpacing: 2,
+  },
+  catalystMainCard: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 36,
+    padding: 30,
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  catalystIconOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(43, 144, 143, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  catalystIconInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(43, 144, 143, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  catalystHabitTitle: {
+    fontSize: 24,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  catalystDivider: {
+    width: 40,
+    height: 2,
+    backgroundColor: PRIMARY_COLOR,
+    marginBottom: 20,
+  },
+  catalystDescription: {
+    fontSize: 15,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center',
+    lineHeight: 22,
+    fontStyle: 'italic',
+  },
+  activationHint: {
+    fontSize: 12,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.3)',
+    marginTop: 16,
+  },
+  imageOverlayContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1600,178 +2202,15 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     marginTop: 4,
   },
-  imageOverlayContainer: {
-    height: height * 0.45,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  catalystBadge: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    marginBottom: 16,
-  },
-  catalystBadgeText: {
-    fontSize: 10,
-    fontFamily: 'Garet-Heavy',
-    color: PRIMARY_COLOR,
-    letterSpacing: 1,
-  },
-  catalystMainCard: {
-    width: width * 0.85,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 35,
-    padding: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    shadowColor: PRIMARY_COLOR,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-  },
-  catalystIconOuter: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
-  catalystIconInner: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
-  },
-  catalystHabitTitle: {
-    fontSize: 30,
-    fontFamily: 'Garet-Heavy',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  catalystDivider: {
-    width: 40,
-    height: 2,
-    backgroundColor: PRIMARY_COLOR,
-    opacity: 0.4,
-    marginBottom: 20,
-  },
-  catalystDescription: {
-    fontSize: 15,
-    fontFamily: 'Garet-Book',
-    color: 'rgba(255,255,255,0.5)',
-    textAlign: 'center',
-    lineHeight: 22,
-    fontStyle: 'italic',
-  },
-  activationHint: {
-    fontSize: 11,
-    fontFamily: 'Garet-Book',
-    color: 'rgba(255,255,255,0.3)',
-    marginTop: 16,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  journeyCard: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 32,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  journeyTitle: {
-    fontSize: 12,
-    fontFamily: 'Garet-Heavy',
-    color: 'rgba(255,255,255,0.4)',
-    letterSpacing: 2,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  journeyContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    position: 'relative',
-    height: 120,
-    marginTop: 15,
-  },
-  journeyLine: {
-    position: 'absolute',
-    top: 30, // Exact center of 60px icon wrapper
-    left: 20,
-    right: 20,
+  modalInputGlow: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  journeyStep: {
-    alignItems: 'center',
-    width: 60,
-    zIndex: 1,
-  },
-  activeStepGlow: {
-    backgroundColor: 'rgba(43, 144, 143, 0.2)',
-    borderColor: PRIMARY_COLOR,
+    width: '80%',
+    backgroundColor: PRIMARY_COLOR,
     shadowColor: PRIMARY_COLOR,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  iconCropContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#000',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  journeyIconWrapper: {
-    width: 60,
-    height: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  journeyStageWrapper: {
-    height: 15,
-    marginTop: 4,
-    justifyContent: 'center',
-  },
-  evolutionIcon: {
-    width: '100%',
-    height: '100%',
-    transform: [{ scale: 1.05 }],
-  },
-  evolutionIconFixed: {
-    width: '100%',
-    height: '100%',
-  },
-  journeyStepLabelHeader: {
-    fontSize: 10,
-    fontFamily: 'Garet-Heavy',
-    color: '#fff',
-  },
-  journeyStepLabelSub: {
-    fontSize: 9,
-    fontFamily: 'Garet-Book',
-    marginTop: 2,
-    color: PRIMARY_COLOR,
+    shadowRadius: 8,
+    elevation: 5,
   },
   modalOverlay: {
     flex: 1,
@@ -1801,34 +2240,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingBottom: Platform.OS === 'ios' ? 60 : 40,
   },
-  modalFooterPremium: {
-    paddingTop: 20,
-    width: '100%',
-  },
-  premiumAddButtonLarge: {
-    height: 64,
-    width: '100%',
-    borderRadius: 32,
-    overflow: 'hidden',
-    shadowColor: PRIMARY_COLOR,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 8,
-  },
-  premiumButtonGradient: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  premiumButtonTextMain: {
-    color: '#fff',
-    fontSize: 16,
-    fontFamily: 'Garet-Heavy',
-    letterSpacing: 2,
-  },
   modalSheetTitle: {
     fontSize: 28,
     fontFamily: 'Garet-Heavy',
@@ -1848,14 +2259,269 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingVertical: 15,
   },
-  modalInputGlow: {
+  journeyCard: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 32,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginTop: 30,
+  },
+  journeyTitle: {
+    fontSize: 12,
+    fontFamily: 'Garet-Heavy',
+    color: 'rgba(255,255,255,0.4)',
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  journeyContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    position: 'relative',
+    height: 120,
+    marginTop: 15,
+  },
+  journeyLine: {
+    position: 'absolute',
+    top: 30,
+    left: 20,
+    right: 20,
     height: 1,
-    width: '80%',
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  journeyStep: {
+    alignItems: 'center',
+    width: 60,
+    zIndex: 1,
+  },
+  journeyIconWrapper: {
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  iconCropContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  activeStepGlow: {
+    backgroundColor: 'rgba(43, 144, 143, 0.2)',
+    borderColor: PRIMARY_COLOR,
     shadowColor: PRIMARY_COLOR,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  evolutionIconFixed: {
+    width: '100%',
+    height: '100%',
+  },
+  evolutionIcon: {
+    width: '100%',
+    height: '100%',
+    transform: [{ scale: 1.05 }],
+  },
+  journeyStepLabelHeader: {
+    fontSize: 10,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+  },
+  journeyStageWrapper: {
+    height: 15,
+    marginTop: 4,
+    justifyContent: 'center',
+  },
+  journeyStepLabelSub: {
+    fontSize: 9,
+    fontFamily: 'Garet-Book',
+    marginTop: 2,
+    color: PRIMARY_COLOR,
+  },
+  paywallSheet: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#000',
+    overflow: 'hidden',
+  },
+  paywallPremiumRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  paywallIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFD700',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  paywallRowTitle: {
+    fontSize: 16,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  paywallRowSub: {
+    fontSize: 12,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  planCardPremium: {
+    padding: 24,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  planCardPremiumActive: {
+    backgroundColor: 'rgba(43, 144, 143, 0.08)',
+    borderColor: PRIMARY_COLOR,
+  },
+  planTitlePremium: {
+    fontSize: 16,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+  },
+  planBadgePremium: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  planBadgeTextPremium: {
+    fontSize: 10,
+    fontFamily: 'Garet-Heavy',
+    color: '#000',
+    letterSpacing: 0.5,
+  },
+  planPricePremium: {
+    fontSize: 24,
+    fontFamily: 'Garet-Heavy',
+    color: PRIMARY_COLOR,
+    marginVertical: 4,
+  },
+  planSubPremium: {
+    fontSize: 13,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  premiumButtonLarge: {
+    width: '100%',
+    height: 64,
+    borderRadius: 32,
+    overflow: 'hidden',
+    shadowColor: PRIMARY_COLOR,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  premiumButtonGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 35,
+  },
+  premiumButtonTextLarge: {
+    fontSize: 16,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    letterSpacing: 2,
+    marginRight: 10,
+  },
+  restoreLink: {
+    fontSize: 14,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.4)',
+    textDecorationLine: 'underline',
+  },
+  compactFeatureBox: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  compactFeatureText: {
+    fontSize: 11,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  legalTextMini: {
+    fontSize: 10,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.3)',
+  },
+  planCardCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  planTitleSmall: {
+    fontSize: 15,
+    fontFamily: 'Garet-Heavy',
+    color: '#fff',
+  },
+  planSubtitleSmall: {
+    fontSize: 12,
+    fontFamily: 'Garet-Book',
+    color: 'rgba(255,255,255,0.4)',
+  },
+  planBadgeSmall: {
+    backgroundColor: PRIMARY_COLOR,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginRight: 10,
+  },
+  planBadgeTextSmall: {
+    fontSize: 10,
+    fontFamily: 'Garet-Heavy',
+    color: '#000',
+  },
+  planCheckSmall: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  flexDir: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
