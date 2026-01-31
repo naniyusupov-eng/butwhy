@@ -14,6 +14,9 @@ import * as Font from 'expo-font';
 
 const { width, height } = Dimensions.get('window');
 
+import { Paywall1, Paywall2, Paywall3, Paywall4, Paywall5 } from './paywalls';
+
+
 const AnimatedImage = Animated.createAnimatedComponent(ExpoImage);
 
 // --- Context / Global State Simulation ---
@@ -506,171 +509,7 @@ const LoadingScreen = ({ transformationType }: { transformationType: string }) =
   );
 };
 
-const PaywallScreen = ({ visible, onContinue }: { visible: boolean; onContinue: () => void }) => {
-  const [selectedPlan, setSelectedPlan] = useState('yearly_trial');
-  const [modalY] = useState(new Animated.Value(height));
 
-  const PLANS = [
-    { id: 'weekly_trial', title: 'Weekly Sprint', sub: '$4.99 / Week', mainPrice: '3 DAYS FREE', footer: 'Try Risk Free', badge: null },
-    { id: 'monthly_trial', title: 'Monthly Habit', sub: '$9.99 / Month', mainPrice: '3 DAYS FREE', footer: 'Cancel Anytime', badge: null },
-    { id: 'quarterly', title: 'Quarterly Routine', sub: '$29.99 / Quarter', mainPrice: '$2.49', footer: 'per week', badge: null },
-    { id: 'yearly', title: 'Yearly Evolution', sub: '$59.99 / Year', mainPrice: '$1.15', footer: 'per week', badge: 'POPULAR' },
-    { id: 'lifetime', title: 'Eternal Mindset', sub: 'Lifetime Access', mainPrice: '$149.99', footer: 'one-time', badge: 'LEGACY' },
-  ];
-
-  const FEATURES = [
-    { icon: 'activity', text: 'Infinite Habit Transformation' },
-    { icon: 'trending-up', text: 'Deep Evolution Analytics' },
-    { icon: 'eye', text: 'Cinematic Daily Insights' },
-    { icon: 'shield', text: '100% Evolution Guarantee' },
-  ];
-
-  useEffect(() => {
-    if (visible) {
-      Animated.spring(modalY, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 25,
-        friction: 10
-      }).start();
-    }
-  }, [visible]);
-
-  if (!visible) return null;
-
-  return (
-    <Modal transparent visible={visible} animationType="none">
-      <View style={styles.modalOverlay}>
-        <Animated.View style={[styles.paywallSheet, { transform: [{ translateY: modalY }] }]}>
-          {/* Background Layering */}
-          <Image
-            source={require('./assets/opium_bird.png')}
-            style={[StyleSheet.absoluteFill, { opacity: 0.5 }]}
-          />
-          <BlurView intensity={25} tint="dark" style={StyleSheet.absoluteFill} />
-          <LinearGradient
-            colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.8)', '#000']}
-            style={StyleSheet.absoluteFill}
-          />
-
-          <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: Platform.OS === 'ios' ? 45 : 20, paddingBottom: 0 }}>
-
-            {/* Close Button Top Right - Simplified */}
-            <Pressable
-              onPress={onContinue}
-              style={{
-                position: 'absolute', top: 55, right: 24,
-                zIndex: 100
-              }}
-            >
-              <Feather name="x" size={24} color="rgba(255,255,255,0.4)" />
-            </Pressable>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}>
-
-              {/* Header Section - Lifted Even Higher */}
-              <View style={{ alignItems: 'center', marginTop: 0, marginBottom: 60 }}>
-                <Text style={{
-                  color: '#fff', fontSize: 38, fontFamily: 'Garet-Heavy',
-                  textAlign: 'center', lineHeight: 42, letterSpacing: -0.5
-                }}>
-                  Unlimited Access
-                </Text>
-              </View>
-
-              {/* Features List Section - Increased margin bottom */}
-              <View style={{ paddingHorizontal: 10, marginBottom: 25, gap: 10 }}>
-                {FEATURES.map((f, i) => (
-                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={{ width: 20, alignItems: 'center', marginRight: 12 }}>
-                      <Feather name={f.icon as any} size={16} color={PRIMARY_COLOR} />
-                    </View>
-                    <Text style={{ color: '#fff', fontSize: 13, fontFamily: 'Garet-Book', opacity: 0.8 }}>
-                      {f.text}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* Plans Section - Compact Gap */}
-              <View style={{ gap: 8, marginBottom: 20 }}>
-                {PLANS.map((plan) => (
-                  <Pressable
-                    key={plan.id}
-                    style={{
-                      flexDirection: 'row',
-                      backgroundColor: 'rgba(255,255,255,0.03)',
-                      borderRadius: 14,
-                      paddingHorizontal: 14,
-                      paddingVertical: 8,
-                      borderWidth: selectedPlan === plan.id ? 2 : 1,
-                      borderColor: selectedPlan === plan.id ? PRIMARY_COLOR : 'rgba(255,255,255,0.1)',
-                      alignItems: 'center',
-                      position: 'relative'
-                    }}
-                    onPress={() => setSelectedPlan(plan.id)}
-                  >
-                    {plan.badge && (
-                      <View style={{
-                        position: 'absolute', top: -8, right: 20,
-                        backgroundColor: '#ff4b5c', paddingHorizontal: 8,
-                        paddingVertical: 2, borderRadius: 8, zIndex: 10
-                      }}>
-                        <Text style={{ color: '#fff', fontSize: 8, fontFamily: 'Garet-Heavy' }}>{plan.badge}</Text>
-                      </View>
-                    )}
-
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: '#fff', fontSize: 16, fontFamily: 'Garet-Heavy' }}>{plan.title}</Text>
-                      <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontFamily: 'Garet-Book' }}>{plan.sub}</Text>
-                    </View>
-
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{
-                        color: plan.mainPrice.includes('FREE') ? PRIMARY_COLOR : '#fff',
-                        fontSize: 16, fontFamily: 'Garet-Heavy'
-                      }}>
-                        {plan.mainPrice}
-                      </Text>
-                      <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, fontFamily: 'Garet-Book' }}>{plan.footer}</Text>
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-
-              {/* CTA Section - Compact height */}
-              <View>
-                <Pressable
-                  style={{
-                    height: 52,
-                    borderRadius: 26,
-                    overflow: 'hidden',
-                  }}
-                  onPress={onContinue}
-                >
-                  <LinearGradient
-                    colors={[PRIMARY_COLOR, '#1e6b6a']}
-                    style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  >
-                    <Text style={{ color: '#fff', fontSize: 16, fontFamily: 'Garet-Heavy' }}>START TRAINING NOW</Text>
-                  </LinearGradient>
-                </Pressable>
-
-                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24, marginTop: 15, marginBottom: 10 }}>
-                  <Pressable hitSlop={10}><Text style={[styles.legalTextMini, { opacity: 0.4 }]}>Terms</Text></Pressable>
-                  <Pressable hitSlop={10}><Text style={[styles.legalTextMini, { opacity: 0.4 }]}>Privacy</Text></Pressable>
-                  <Pressable hitSlop={10}><Text style={[styles.legalTextMini, { opacity: 0.4 }]}>Restore</Text></Pressable>
-                </View>
-              </View>
-            </ScrollView>
-          </View>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-};
 
 // --- Main App ---
 
@@ -699,7 +538,10 @@ export default function App() {
   const [newHabitTitle, setNewHabitTitle] = useState('');
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
+  const [paywallVariant, setPaywallVariant] = useState(1);
+
   useEffect(() => {
+
     const showSubscription = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       () => setIsKeyboardVisible(true)
@@ -1324,9 +1166,14 @@ export default function App() {
       {step === 'paywall' && (
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           {renderDashboard()}
-          <PaywallScreen visible={true} onContinue={() => setStep('dashboard')} />
+          {paywallVariant === 1 && <Paywall1 visible={true} onContinue={() => setStep('dashboard')} onClose={() => { setPaywallVariant(2); }} />}
+          {paywallVariant === 2 && <Paywall2 visible={true} onContinue={() => setStep('dashboard')} onClose={() => { setPaywallVariant(3); }} />}
+          {paywallVariant === 3 && <Paywall3 visible={true} onContinue={() => setStep('dashboard')} onClose={() => { setPaywallVariant(4); }} />}
+          {paywallVariant === 4 && <Paywall4 visible={true} onContinue={() => setStep('dashboard')} onClose={() => { setPaywallVariant(5); }} />}
+          {paywallVariant === 5 && <Paywall5 visible={true} onContinue={() => setStep('dashboard')} onClose={() => { setPaywallVariant(1); }} />}
         </View>
       )}
+
       {step === 'dashboard' && renderDashboard()}
       {step === 'stats' && renderStats()}
 
