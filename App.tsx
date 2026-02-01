@@ -39,7 +39,9 @@ type OnboardingStep =
   | 'success' // Success Moment
   | 'paywall' // Paywall
   | 'dashboard'
-  | 'stats';
+  | 'stats'
+  | 'settings'
+  | 'calendar';
 
 interface Habit {
   id: string;
@@ -527,7 +529,35 @@ export default function App() {
       { id: '2', title: 'Meditation', emoji: '🧘' },
       { id: '3', title: 'Sleep (10pm-6am)', emoji: '🌙' },
     ],
-    habitHistory: {},
+    habitHistory: {
+      "2026-01-01": ["1"],
+      "2026-01-02": ["1", "2", "3"],
+      "2026-01-03": ["1", "2"],
+      "2026-01-04": ["1", "2", "3"],
+      "2026-01-05": ["1", "2", "3"],
+      "2026-01-06": ["1", "2", "3"],
+      "2026-01-07": ["2", "3"],
+      "2026-01-08": ["1", "2", "3"],
+      "2026-01-09": ["1", "2", "3"],
+      "2026-01-10": ["1"],
+      "2026-01-11": ["1", "2", "3"],
+      "2026-01-12": ["1", "3"],
+      "2026-01-13": ["1", "2", "3"],
+      "2026-01-14": ["1", "2", "3"],
+      "2026-01-15": ["1", "2", "3"],
+      "2026-01-16": ["2"],
+      "2026-01-17": ["1", "2", "3"],
+      "2026-01-18": ["1", "2", "3"],
+      "2026-01-20": ["1", "2", "3"],
+      "2026-01-22": ["1", "2", "3"],
+      "2026-01-23": ["1", "2"],
+      "2026-01-24": ["1", "2", "3"],
+      "2026-01-25": ["1", "2", "3"],
+      "2026-01-27": ["1", "2", "3"],
+      "2026-01-28": ["1", "2", "3"],
+      "2026-01-29": ["3"],
+      "2026-01-30": ["1", "2", "3"],
+    },
   });
   const [notificationTime, setNotificationTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(Platform.OS === 'ios');
@@ -535,10 +565,13 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [calendarCursor, setCalendarCursor] = useState(new Date());
   const [newHabitTitle, setNewHabitTitle] = useState('');
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const [paywallVariant, setPaywallVariant] = useState(1);
+  const [isNotificationsEnabled, setIsNotificationsEnabled] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
 
@@ -740,15 +773,33 @@ export default function App() {
   };
 
   const renderIntro1 = () => (
-    <CinematicIntro
-      imageSource={require('./assets/nihilist_penguin.png')}
-      tag="PART I"
-      title={"THE NIHILIST\nPENGUIN"}
-      caption={'"You\'re walking away from everything.\nNo direction. No meaning. No why."'}
-      buttonText="CONTINUE WALK"
-      buttonIcon="arrow-right"
-      onPress={() => setStep('intro2')}
-    />
+    <View style={{ flex: 1 }}>
+      <CinematicIntro
+        imageSource={require('./assets/nihilist_penguin.png')}
+        tag="PART I"
+        title={"THE NIHILIST\nPENGUIN"}
+        caption={'"You\'re walking away from everything.\nNo direction. No meaning. No why."'}
+        buttonText="CONTINUE WALK"
+        buttonIcon="arrow-right"
+        onPress={() => setStep('intro2')}
+      />
+      <Pressable
+        onPress={() => setStep('dashboard')}
+        style={{
+          position: 'absolute',
+          top: 60,
+          right: 20,
+          padding: 8,
+          backgroundColor: 'rgba(255,255,255,0.05)',
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.1)',
+          zIndex: 999,
+        }}
+      >
+        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontFamily: 'Garet-Heavy' }}>SKIP TO MAIN</Text>
+      </Pressable>
+    </View>
   );
 
   const renderIntro2 = () => (
@@ -775,300 +826,829 @@ export default function App() {
     />
   );
 
-  const renderDashboard = () => (
-    <View style={[styles.screen, { backgroundColor: '#000' }]}>
-      <Image
-        source={require('./assets/pattern_bg.png')}
-        style={[StyleSheet.absoluteFill, { opacity: 0.1 }]}
-        resizeMode="repeat"
-      />
-      <LinearGradient
-        colors={['rgba(43, 144, 143, 0.1)', 'transparent']}
-        style={StyleSheet.absoluteFill}
-      />
+  const renderDashboard = () => {
+    const theme = {
+      bg: isDarkMode ? '#000' : '#F8F9FA',
+      text: isDarkMode ? '#fff' : '#1A1A1A',
+      subText: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)',
+      card: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,1)',
+      border: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+      navbar: isDarkMode ? 'dark' : 'light',
+      shadow: isDarkMode ? 'transparent' : 'rgba(0,0,0,0.05)'
+    };
 
-      <View style={[styles.header, { paddingTop: 60 }]}>
-        <Text style={[styles.cinematicTag, { marginBottom: 4 }]}>EVOLUTION TRACKER</Text>
-        <Text style={[styles.dashboardTitle, { color: '#fff' }]}>Day 1 of {onboarding.timeline}</Text>
-      </View>
+    return (
+      <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+        {isDarkMode && (
+          <Image
+            source={require('./assets/pattern_bg.png')}
+            style={[StyleSheet.absoluteFill, { opacity: 0.1 }]}
+            resizeMode="repeat"
+          />
+        )}
+        <LinearGradient
+          colors={[isDarkMode ? 'rgba(43, 144, 143, 0.1)' : 'rgba(43, 144, 143, 0.05)', 'transparent']}
+          style={StyleSheet.absoluteFill}
+        />
 
-      <ScrollView style={{ flex: 1, padding: 20 }}>
-        {/* Calendar Section (Sliding Window) */}
-        <FadeInView delay={200} style={{ marginBottom: 30 }}>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.03)', paddingVertical: 15, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 15 }}
-              contentOffset={{ x: (15 * 52) - (width / 2) + 26 + 15, y: 0 }}
-            >
-              {Array.from({ length: 31 }).map((_, i) => {
-                // Centered on Today
-                const d = new Date();
-                d.setDate(d.getDate() - 15 + i);
+        <View style={[styles.header, { paddingTop: 60, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 }]}>
+          <View>
+            <Text style={[styles.cinematicTag, { marginBottom: 4, color: isDarkMode ? PRIMARY_COLOR : '#555' }]}>EVOLUTION TRACKER</Text>
+            <Text style={[styles.dashboardTitle, { color: theme.text }]}>Day 1 of {onboarding.timeline}</Text>
+          </View>
+          <Pressable
+            onPress={() => setStep('settings')}
+            style={({ pressed }) => [
+              {
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: theme.border,
+                opacity: pressed ? 0.7 : 1
+              }
+            ]}
+          >
+            <Feather name="settings" size={20} color={theme.text} />
+          </Pressable>
+        </View>
 
-                const isSelected = d.getDate() === selectedDate.getDate() && d.getMonth() === selectedDate.getMonth() && d.getFullYear() === selectedDate.getFullYear();
-                const isToday = d.getDate() === new Date().getDate() && d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
+        <ScrollView style={{ flex: 1, padding: 20 }}>
+          <View style={[styles.sectionHeader, { marginBottom: 15 }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text, fontSize: 14, fontFamily: 'Garet-Heavy' }]}>JOURNEY LOG</Text>
+            <Pressable onPress={() => setStep('calendar')}>
+              <Text style={{ color: PRIMARY_COLOR, fontFamily: 'Garet-Heavy', fontSize: 12 }}>SEE ALL</Text>
+            </Pressable>
+          </View>
 
-                return (
-                  <Pressable
-                    key={i}
-                    style={{ alignItems: 'center', marginRight: 12, width: 40, opacity: 1 }}
-                    onPress={() => {
-                      setSelectedDate(new Date(d));
-                      Haptics.selectionAsync();
-                    }}
-                  >
-                    <Text style={{
-                      fontFamily: 'Garet-Book',
-                      color: isSelected ? PRIMARY_COLOR : 'rgba(255,255,255,0.4)',
-                      fontSize: 11,
-                      marginBottom: 8
-                    }}>
-                      {d.toLocaleDateString('en-US', { weekday: 'narrow' })}
-                    </Text>
-                    <View style={{
-                      width: 40, height: 40, borderRadius: 20,
-                      backgroundColor: isSelected ? PRIMARY_COLOR : 'rgba(255,255,255,0.05)',
-                      justifyContent: 'center', alignItems: 'center',
-                      borderWidth: isSelected ? 0 : 1,
-                      borderColor: isSelected ? PRIMARY_COLOR : (isToday ? '#fff' : 'rgba(255,255,255,0.1)'),
-                      shadowColor: isSelected ? PRIMARY_COLOR : '#000',
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: isSelected ? 0.3 : 0,
-                      shadowRadius: 8,
-                      elevation: isSelected ? 5 : 0
-                    }}>
+          {/* Calendar Section (Sliding Window) */}
+          <FadeInView delay={200} style={{ marginBottom: 30 }}>
+            <View style={{
+              backgroundColor: theme.card,
+              paddingVertical: 15,
+              borderRadius: 24,
+              borderWidth: 1,
+              borderColor: theme.border,
+              shadowColor: theme.shadow,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 1,
+              shadowRadius: 10,
+              elevation: 2
+            }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 15 }}
+                contentOffset={{ x: (15 * 52) - (width / 2) + 26 + 15, y: 0 }}
+              >
+                {Array.from({ length: 31 }).map((_, i) => {
+                  // Centered on Today
+                  const d = new Date();
+                  d.setDate(d.getDate() - 15 + i);
+
+                  const isSelected = d.getDate() === selectedDate.getDate() && d.getMonth() === selectedDate.getMonth() && d.getFullYear() === selectedDate.getFullYear();
+                  const isToday = d.getDate() === new Date().getDate() && d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
+
+                  return (
+                    <Pressable
+                      key={i}
+                      style={{ alignItems: 'center', marginRight: 12, width: 40, opacity: 1 }}
+                      onPress={() => {
+                        setSelectedDate(new Date(d));
+                        Haptics.selectionAsync();
+                      }}
+                    >
                       <Text style={{
-                        fontFamily: 'Garet-Heavy',
-                        color: isSelected ? '#000' : '#fff',
-                        fontSize: 14
+                        fontFamily: 'Garet-Book',
+                        color: isSelected ? PRIMARY_COLOR : theme.subText,
+                        fontSize: 11,
+                        marginBottom: 8
                       }}>
-                        {d.getDate()}
+                        {["S", "M", "T", "W", "T", "F", "S"][d.getDay()]}
+                      </Text>
+                      <View style={{
+                        width: 40, height: 40, borderRadius: 20,
+                        backgroundColor: isSelected ? PRIMARY_COLOR : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'),
+                        justifyContent: 'center', alignItems: 'center',
+                        borderWidth: isSelected ? 0 : 1,
+                        borderColor: isSelected ? PRIMARY_COLOR : (isToday ? (isDarkMode ? '#fff' : '#000') : theme.border),
+                        shadowColor: isSelected ? PRIMARY_COLOR : '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: isSelected ? 0.3 : 0,
+                        shadowRadius: 8,
+                        elevation: isSelected ? 5 : 0
+                      }}>
+                        <Text style={{
+                          fontFamily: 'Garet-Heavy',
+                          color: isSelected ? (isDarkMode ? '#000' : '#fff') : theme.text,
+                          fontSize: 14
+                        }}>
+                          {d.getDate()}
+                        </Text>
+                      </View>
+                      {isToday && !isSelected && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: theme.text, marginTop: 6 }} />}
+                      {isSelected && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: PRIMARY_COLOR, marginTop: 6 }} />}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </FadeInView>
+
+          {/* Habit List Section */}
+          <FadeInView delay={400} style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Daily Mantras</Text>
+          </FadeInView>
+
+          <View style={styles.habitGrid}>
+            {onboarding.day1Habits.map((habit, index) => {
+              const dateKey = selectedDate.toISOString().split('T')[0];
+              const isCompleted = (onboarding.habitHistory[dateKey] || []).includes(habit.id);
+
+              return (
+                <FadeInView key={habit.id} delay={600 + index * 100}>
+                  <Pressable
+                    style={[
+                      styles.habitGlassCard,
+                      { backgroundColor: theme.card, borderColor: theme.border },
+                      isCompleted && { borderColor: 'rgba(43, 144, 143, 0.3)', backgroundColor: isDarkMode ? 'rgba(43, 144, 143, 0.05)' : 'rgba(43, 144, 143, 0.02)' }
+                    ]}
+                    onPress={() => toggleHabit(habit.id)}
+                  >
+                    <View style={[styles.habitIconContainer, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }, isCompleted && { backgroundColor: 'rgba(43, 144, 143, 0.2)' }]}>
+                      <Text style={[styles.habitIconEmoji, isCompleted && { opacity: 0.5 }]}>{habit.emoji}</Text>
+                    </View>
+                    <View style={styles.habitCardInfo}>
+                      <Text style={[styles.habitCardTitle, { color: theme.text }, isCompleted && { color: theme.subText, textDecorationLine: 'line-through' }]}>
+                        {habit.title}
+                      </Text>
+                      <Text style={[styles.habitCardStatus, { color: theme.subText }, isCompleted && { color: PRIMARY_COLOR }]}>
+                        {isCompleted ? 'Mastered today' : 'Daily Commitment'}
                       </Text>
                     </View>
-                    {isToday && !isSelected && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#fff', marginTop: 6 }} />}
-                    {isSelected && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: PRIMARY_COLOR, marginTop: 6 }} />}
+                    <View style={[
+                      styles.habitCheckCircle,
+                      { borderColor: theme.border },
+                      isCompleted && { backgroundColor: PRIMARY_COLOR, borderColor: PRIMARY_COLOR }
+                    ]}>
+                      <Feather name="check" size={16} color={isCompleted ? "#fff" : (isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)")} />
+                    </View>
                   </Pressable>
+                </FadeInView>
+              );
+            })}
+          </View>
+
+          <FadeInView delay={1000} style={[styles.quoteSeparator, { backgroundColor: theme.border }]} />
+
+          <FadeInView delay={1200} style={styles.zenQuoteContainer}>
+            <Feather name="anchor" size={20} color={PRIMARY_COLOR} style={{ marginBottom: 16 }} />
+            <Text style={[styles.zenQuoteText, { color: theme.subText }]}>
+              "The mountains aren't torture.{"\n"}They're just {onboarding.timeline} days away."
+            </Text>
+          </FadeInView>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
+
+        <View style={[styles.navbar, { borderTopColor: theme.border, height: Platform.OS === 'ios' ? 90 : 70, paddingVertical: 0 }]}>
+          <BlurView intensity={80} tint={theme.navbar as any} style={StyleSheet.absoluteFill} />
+          <Pressable
+            style={styles.navButton}
+            onPress={() => setStep('dashboard')}
+          >
+            <Feather name="home" size={28} color={step === 'dashboard' ? PRIMARY_COLOR : theme.subText} />
+          </Pressable>
+          <Pressable
+            style={[styles.navPlusButton, !isDarkMode && { backgroundColor: PRIMARY_COLOR, shadowColor: PRIMARY_COLOR }]}
+            onPress={() => setIsAddModalVisible(true)}
+          >
+            <Feather name="plus" size={36} color={isDarkMode ? "#000" : "#fff"} />
+          </Pressable>
+          <Pressable
+            style={styles.navButton}
+            onPress={() => setStep('stats')}
+          >
+            <Feather name="bar-chart-2" size={28} color={step === 'stats' ? PRIMARY_COLOR : theme.subText} />
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  const renderSettings = () => {
+    const theme = {
+      bg: isDarkMode ? '#000' : '#F8F9FA',
+      text: isDarkMode ? '#fff' : '#1A1A1A',
+      subText: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)',
+      card: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,1)',
+      border: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+      navbar: isDarkMode ? 'dark' : 'light'
+    };
+
+    return (
+      <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+        {isDarkMode && (
+          <Image
+            source={require('./assets/pattern_bg.png')}
+            style={[StyleSheet.absoluteFill, { opacity: 0.1 }]}
+            resizeMode="repeat"
+          />
+        )}
+
+        <View style={[styles.header, { paddingTop: 60, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20 }]}>
+          <Pressable
+            onPress={() => setStep('dashboard')}
+            style={{ marginRight: 16 }}
+          >
+            <Feather name="chevron-left" size={28} color={theme.text} />
+          </Pressable>
+          <View>
+            <Text style={[styles.cinematicTag, { marginBottom: 4, color: isDarkMode ? PRIMARY_COLOR : '#555' }]}>CONFIGURATION</Text>
+            <Text style={[styles.dashboardTitle, { color: theme.text }]}>Settings</Text>
+          </View>
+        </View>
+
+        <ScrollView style={{ flex: 1, padding: 20 }}>
+          {/* Minimalist PRO Mode Item */}
+          <FadeInView delay={100}>
+            <View style={[styles.settingsSection, { backgroundColor: theme.card, borderColor: isDarkMode ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 215, 0, 0.3)' }]}>
+              <Pressable
+                style={styles.settingsItem}
+                onPress={() => setStep('paywall')}
+              >
+                <View style={[styles.settingsItemIcon, { backgroundColor: 'rgba(255, 215, 0, 0.1)' }]}>
+                  <MaterialCommunityIcons name="crown" size={22} color="#FFD700" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.settingsItemText, { color: theme.text, fontFamily: 'Garet-Heavy' }]}>PRO Membership</Text>
+                  <Text style={{ color: theme.subText, fontSize: 12, fontFamily: 'Garet-Book' }}>Active • Lifetime Access</Text>
+                </View>
+                <View style={[styles.premiumBadgeMini, { backgroundColor: '#FFD700' }]}>
+                  <Text style={styles.premiumBadgeMiniText}>PRO</Text>
+                </View>
+              </Pressable>
+            </View>
+          </FadeInView>
+
+          <FadeInView delay={300}>
+            <View style={[styles.settingsSection, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={styles.settingsSectionTitle}>PREFERENCES</Text>
+
+              <View style={styles.settingsItem}>
+                <View style={[styles.settingsItemIcon, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                  <Feather name="bell" size={20} color={PRIMARY_COLOR} />
+                </View>
+                <Text style={[styles.settingsItemText, { color: theme.text }]}>Notifications</Text>
+                <Pressable
+                  onPress={() => {
+                    setIsNotificationsEnabled(!isNotificationsEnabled);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  style={[
+                    styles.toggleContainer,
+                    isNotificationsEnabled ? { backgroundColor: PRIMARY_COLOR } : { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
+                  ]}
+                >
+                  <Animated.View style={[
+                    styles.toggleCircle,
+                    isNotificationsEnabled ? { transform: [{ translateX: 20 }] } : { transform: [{ translateX: 0 }] }
+                  ]} />
+                </Pressable>
+              </View>
+
+              <View style={[styles.settingsDivider, { backgroundColor: theme.border }]} />
+
+              <View style={styles.settingsItem}>
+                <View style={[styles.settingsItemIcon, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                  <Feather name="moon" size={20} color={PRIMARY_COLOR} />
+                </View>
+                <Text style={[styles.settingsItemText, { color: theme.text }]}>Dark Mode</Text>
+                <Pressable
+                  onPress={() => {
+                    setIsDarkMode(!isDarkMode);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  style={[
+                    styles.toggleContainer,
+                    isDarkMode ? { backgroundColor: PRIMARY_COLOR } : { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
+                  ]}
+                >
+                  <Animated.View style={[
+                    styles.toggleCircle,
+                    isDarkMode ? { transform: [{ translateX: 20 }] } : { transform: [{ translateX: 0 }] }
+                  ]} />
+                </Pressable>
+              </View>
+
+              <View style={[styles.settingsDivider, { backgroundColor: theme.border }]} />
+
+              <Pressable style={styles.settingsItem}>
+                <View style={[styles.settingsItemIcon, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                  <Feather name="globe" size={20} color={PRIMARY_COLOR} />
+                </View>
+                <Text style={[styles.settingsItemText, { color: theme.text }]}>Language</Text>
+                <Text style={{ color: theme.subText, fontFamily: 'Garet-Book', marginRight: 8 }}>English</Text>
+                <Feather name="chevron-right" size={16} color={theme.subText} />
+              </Pressable>
+            </View>
+          </FadeInView>
+
+          <FadeInView delay={500}>
+            <View style={[styles.settingsSection, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={styles.settingsSectionTitle}>SUPPORT</Text>
+              <Pressable style={styles.settingsItem}>
+                <View style={[styles.settingsItemIcon, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                  <Feather name="help-circle" size={20} color={PRIMARY_COLOR} />
+                </View>
+                <Text style={[styles.settingsItemText, { color: theme.text }]}>Help Center</Text>
+                <Feather name="chevron-right" size={20} color={theme.subText} />
+              </Pressable>
+              <View style={[styles.settingsDivider, { backgroundColor: theme.border }]} />
+              <Pressable style={styles.settingsItem}>
+                <View style={[styles.settingsItemIcon, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                  <Feather name="shield" size={20} color={PRIMARY_COLOR} />
+                </View>
+                <Text style={[styles.settingsItemText, { color: theme.text }]}>Privacy Policy</Text>
+                <Feather name="chevron-right" size={20} color={theme.subText} />
+              </Pressable>
+            </View>
+          </FadeInView>
+
+          <View style={{ height: 120, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: theme.subText, fontSize: 12, fontFamily: 'Garet-Book' }}>Version 1.0.42</Text>
+            <Text style={{ color: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)', fontSize: 10, fontFamily: 'Garet-Heavy', marginTop: 4 }}>BUTWHY LABS</Text>
+          </View>
+        </ScrollView>
+
+        <View style={[styles.navbar, { borderTopColor: theme.border, height: Platform.OS === 'ios' ? 90 : 70, paddingVertical: 0 }]}>
+          <BlurView intensity={80} tint={theme.navbar as any} style={StyleSheet.absoluteFill} />
+          <Pressable
+            style={styles.navButton}
+            onPress={() => setStep('dashboard')}
+          >
+            <Feather name="home" size={28} color={step === 'dashboard' ? PRIMARY_COLOR : theme.subText} />
+          </Pressable>
+          <Pressable
+            style={[styles.navPlusButton, !isDarkMode && { backgroundColor: PRIMARY_COLOR, shadowColor: PRIMARY_COLOR }]}
+            onPress={() => setIsAddModalVisible(true)}
+          >
+            <Feather name="plus" size={36} color={isDarkMode ? "#000" : "#fff"} />
+          </Pressable>
+          <Pressable
+            style={styles.navButton}
+            onPress={() => setStep('stats')}
+          >
+            <Feather name="bar-chart-2" size={28} color={step === 'stats' ? PRIMARY_COLOR : theme.subText} />
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  const renderStats = () => {
+    const theme = {
+      bg: isDarkMode ? '#000' : '#F8F9FA',
+      text: isDarkMode ? '#fff' : '#1A1A1A',
+      subText: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)',
+      card: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,1)',
+      border: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+      navbar: isDarkMode ? 'dark' : 'light'
+    };
+
+    return (
+      <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+        {isDarkMode && (
+          <Image
+            source={require('./assets/pattern_bg.png')}
+            style={[StyleSheet.absoluteFill, { opacity: 0.1 }]}
+            resizeMode="repeat"
+          />
+        )}
+
+        <View style={[styles.header, { paddingTop: 60 }]}>
+          <Text style={[styles.cinematicTag, { marginBottom: 4, color: isDarkMode ? PRIMARY_COLOR : '#555' }]}>ANALYTICS</Text>
+          <Text style={[styles.dashboardTitle, { color: theme.text }]}>Transcendence</Text>
+        </View>
+
+        <ScrollView style={{ flex: 1, padding: 20 }}>
+          {/* Main Goal Card */}
+          <FadeInView delay={100} style={{ marginBottom: 30 }}>
+            <View style={[styles.premiumMainCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={styles.premiumMainBadge}>
+                <Text style={styles.premiumMainBadgeText}>CURRENT PHASE</Text>
+              </View>
+              <Text style={[styles.premiumMainTitle, { color: theme.text }]}>Nihilist → Opium Bird</Text>
+              <View style={styles.premiumProgressContainer}>
+                <View style={[styles.premiumProgressBar, { width: '15%' }]} />
+              </View>
+              <Text style={[styles.premiumProgressText, { color: theme.subText }]}>15% Transcendence Complete</Text>
+            </View>
+          </FadeInView>
+
+          {/* Momentum Chart Section */}
+          <FadeInView delay={200} style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Weekly Momentum</Text>
+          </FadeInView>
+
+          <FadeInView delay={400} style={[styles.statGlassCard, { backgroundColor: theme.card, borderColor: theme.border, height: 180, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingBottom: 30 }]}>
+            {[40, 70, 45, 90, 65, 80, 50].map((h, i) => (
+              <View key={i} style={{ alignItems: 'center' }}>
+                <View style={{ width: 12, height: h, backgroundColor: i === 6 ? PRIMARY_COLOR : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'), borderRadius: 6 }} />
+                <Text style={[styles.statLabel, { color: theme.subText, fontSize: 10, marginTop: 8 }]}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}</Text>
+              </View>
+            ))}
+          </FadeInView>
+
+          {/* Quick Stats Section */}
+          <View style={[styles.statsRow, { marginTop: 30 }]}>
+            <FadeInView delay={600} style={[styles.statCard, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}>
+              <Text style={[styles.statValue, { color: theme.text }]}>1</Text>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>Day Streak</Text>
+            </FadeInView>
+            <FadeInView delay={800} style={[styles.statCard, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}>
+              <Text style={[styles.statValue, { color: theme.text }]}>{onboarding.timeline}</Text>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>Days to Bird</Text>
+            </FadeInView>
+          </View>
+
+          {/* Visual Journey Tracker */}
+          <FadeInView delay={1000} style={[styles.journeyCard, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, marginTop: 30 }]}>
+            <Text style={[styles.journeyTitle, { color: theme.subText }]}>YOUR EVOLUTION</Text>
+            <View style={styles.journeyContainer}>
+              <View style={[styles.journeyLine, { backgroundColor: theme.border }]} />
+              <View style={styles.journeyStep}>
+                <View style={styles.journeyIconWrapper}>
+                  <View style={[styles.iconCropContainer, styles.activeStepGlow, { width: 56, height: 56, borderRadius: 28 }]}>
+                    <ExpoImage
+                      source={require('./assets/evolution-img-1.png')}
+                      style={styles.evolutionIconFixed}
+                      contentFit="cover"
+                      transition={0}
+                      priority="high"
+                    />
+                  </View>
+                </View>
+                <Text style={[styles.journeyStepLabelHeader, { color: PRIMARY_COLOR }]}>Day 1</Text>
+                <View style={styles.journeyStageWrapper}>
+                  <Text style={styles.journeyStepLabelSub}>Nihilist</Text>
+                </View>
+              </View>
+
+              <View style={styles.journeyStep}>
+                <View style={styles.journeyIconWrapper}>
+                  <View style={[styles.iconCropContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : '#f0f0f0', borderColor: theme.border }]}>
+                    <ExpoImage source={require('./assets/evolution-img-2.png')} style={styles.evolutionIcon} contentFit="cover" />
+                  </View>
+                </View>
+                <Text style={[styles.journeyStepLabelHeader, { color: theme.subText }]}>Day 15</Text>
+                <View style={styles.journeyStageWrapper} />
+              </View>
+
+              <View style={styles.journeyStep}>
+                <View style={styles.journeyIconWrapper}>
+                  <View style={[styles.iconCropContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : '#f0f0f0', borderColor: theme.border }]}>
+                    <ExpoImage source={require('./assets/evolution-img-3.png')} style={styles.evolutionIcon} contentFit="cover" />
+                  </View>
+                </View>
+                <Text style={[styles.journeyStepLabelHeader, { color: theme.subText }]}>Day 30</Text>
+                <View style={styles.journeyStageWrapper} />
+              </View>
+
+              <View style={styles.journeyStep}>
+                <View style={styles.journeyIconWrapper}>
+                  <View style={[styles.iconCropContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : '#f0f0f0', borderColor: theme.border }]}>
+                    <ExpoImage source={require('./assets/evolution-img-4.png')} style={styles.evolutionIcon} contentFit="cover" />
+                  </View>
+                </View>
+                <Text style={[styles.journeyStepLabelHeader, { color: theme.subText }]}>Day {onboarding.timeline}</Text>
+                <View style={styles.journeyStageWrapper} />
+              </View>
+            </View>
+          </FadeInView>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
+
+        <View style={[styles.navbar, { borderTopColor: theme.border, height: Platform.OS === 'ios' ? 90 : 70, paddingVertical: 0 }]}>
+          <BlurView intensity={80} tint={theme.navbar as any} style={StyleSheet.absoluteFill} />
+          <Pressable
+            style={styles.navButton}
+            onPress={() => setStep('dashboard')}
+          >
+            <Feather name="home" size={28} color={step === 'dashboard' ? PRIMARY_COLOR : theme.subText} />
+          </Pressable>
+          <Pressable
+            style={[styles.navPlusButton, !isDarkMode && { backgroundColor: PRIMARY_COLOR, shadowColor: PRIMARY_COLOR }]}
+            onPress={() => setIsAddModalVisible(true)}
+          >
+            <Feather name="plus" size={36} color={isDarkMode ? "#000" : "#fff"} />
+          </Pressable>
+          <Pressable
+            style={styles.navButton}
+            onPress={() => setStep('stats')}
+          >
+            <Feather name="bar-chart-2" size={28} color={step === 'stats' ? PRIMARY_COLOR : theme.subText} />
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  const renderCalendarView = () => {
+    const theme = {
+      bg: isDarkMode ? '#000' : '#F8F9FA',
+      text: isDarkMode ? '#fff' : '#1A1A1A',
+      subText: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)',
+      card: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,1)',
+      border: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+      navbar: isDarkMode ? 'dark' : 'light'
+    };
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
+
+    const daysInMonthCustom = (month: number, year: number) => new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonthCustom = (month: number, year: number) => new Date(year, month, 1).getDay();
+
+    const now = new Date();
+    const currentMonth = calendarCursor.getMonth();
+    const currentYear = calendarCursor.getFullYear();
+    const totalDays = daysInMonthCustom(currentMonth, currentYear);
+    const startOffset = firstDayOfMonthCustom(currentMonth, currentYear);
+
+    const monthName = monthNames[currentMonth];
+
+    // Range limits: Past 1 year to Future 3 months
+    const minDate = new Date();
+    minDate.setFullYear(now.getFullYear() - 1);
+    minDate.setDate(1);
+    const maxDate = new Date();
+    maxDate.setMonth(now.getMonth() + 3);
+    maxDate.setDate(1);
+
+    const canGoPrev = calendarCursor > minDate;
+    const canGoNext = calendarCursor < maxDate;
+
+    const changeMonth = (offset: number) => {
+      const newDate = new Date(calendarCursor);
+      newDate.setMonth(newDate.getMonth() + offset);
+      setCalendarCursor(newDate);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    };
+
+    const isTodayMonth = now.getMonth() === currentMonth && now.getFullYear() === currentYear;
+
+    // Calculate monthly stats
+    let fullCompletionDays = 0;
+    Object.keys(onboarding.habitHistory).forEach(key => {
+      const date = new Date(key);
+      if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+        if (onboarding.habitHistory[key].length === onboarding.day1Habits.length) {
+          fullCompletionDays++;
+        }
+      }
+    });
+
+    return (
+      <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+        {isDarkMode && (
+          <Image
+            source={require('./assets/pattern_bg.png')}
+            style={[StyleSheet.absoluteFill, { opacity: 0.1 }]}
+            resizeMode="repeat"
+          />
+        )}
+
+        <View style={[styles.header, { paddingTop: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Pressable
+              onPress={() => setStep('dashboard')}
+              style={{
+                width: 44, height: 44, borderRadius: 22,
+                backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1,
+                justifyContent: 'center', alignItems: 'center', marginRight: 16
+              }}
+            >
+              <Feather name="chevron-left" size={24} color={theme.text} />
+            </Pressable>
+            <View>
+              <Text style={[styles.cinematicTag, { color: isDarkMode ? PRIMARY_COLOR : '#555', marginBottom: 2 }]}>JOURNEY LOG</Text>
+              <Text style={[styles.dashboardTitle, { color: theme.text, fontSize: 24 }]}>{monthName} {currentYear}</Text>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable
+              onPress={() => changeMonth(-1)}
+              disabled={!canGoPrev}
+              style={{
+                width: 44, height: 44, borderRadius: 22,
+                backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1,
+                justifyContent: 'center', alignItems: 'center',
+                opacity: canGoPrev ? 1 : 0.3
+              }}
+            >
+              <Feather name="chevron-left" size={20} color={theme.text} />
+            </Pressable>
+            <Pressable
+              onPress={() => changeMonth(1)}
+              disabled={!canGoNext}
+              style={{
+                width: 44, height: 44, borderRadius: 22,
+                backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1,
+                justifyContent: 'center', alignItems: 'center',
+                opacity: canGoNext ? 1 : 0.3
+              }}
+            >
+              <Feather name="chevron-right" size={20} color={theme.text} />
+            </Pressable>
+          </View>
+        </View>
+
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
+          <View style={[styles.settingsSection, { backgroundColor: theme.card, borderColor: theme.border, padding: 20, borderRadius: 32 }]}>
+            {/* Days of week header */}
+            <View style={{ flexDirection: 'row', marginBottom: 20 }}>
+              {dayNames.map((day, idx) => (
+                <Text key={`header-${idx}`} style={{ color: theme.subText, fontFamily: 'Garet-Heavy', fontSize: 10, width: '14.285%', textAlign: 'center', opacity: 0.5 }}>{day}</Text>
+              ))}
+            </View>
+
+            {/* Calendar Grid */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {Array.from({ length: 42 }).map((_, i) => {
+                const dayNum = i - startOffset + 1;
+                const isValidDay = dayNum > 0 && dayNum <= totalDays;
+
+                if (!isValidDay) {
+                  // Only render empty cells if they are before the month start OR if we are still within the first 6 rows and month hasn't ended
+                  if (dayNum > totalDays && (i % 7 === 0 || i >= 35)) return null;
+                  return <View key={`empty-${i}`} style={{ width: '14.285%', height: 55 }} />;
+                }
+
+                const d = new Date(currentYear, currentMonth, dayNum);
+                const dateKey = d.toISOString().split('T')[0];
+                const isToday = isTodayMonth && dayNum === now.getDate();
+                const completedCount = (onboarding.habitHistory[dateKey] || []).length;
+                const totalHabits = onboarding.day1Habits.length;
+                const isFullyCompleted = completedCount > 0 && completedCount === totalHabits;
+                const isPartial = completedCount > 0 && !isFullyCompleted;
+
+                return (
+                  <View key={`day-${dayNum}`} style={{ width: '14.285%', height: 55, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                    <View style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      backgroundColor: isFullyCompleted ? PRIMARY_COLOR : (isPartial ? 'rgba(43, 144, 143, 0.15)' : 'transparent'),
+                      borderWidth: isToday ? 2 : (completedCount > 0 ? 1 : 0),
+                      borderColor: isToday ? PRIMARY_COLOR : (completedCount > 0 ? PRIMARY_COLOR : 'transparent'),
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      shadowColor: isFullyCompleted ? PRIMARY_COLOR : 'transparent',
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 8,
+                      elevation: isFullyCompleted ? 4 : 0
+                    }}>
+                      <Text style={{
+                        color: isFullyCompleted ? '#fff' : (completedCount > 0 ? PRIMARY_COLOR : theme.text),
+                        fontFamily: 'Garet-Heavy',
+                        fontSize: 14
+                      }}>{dayNum}</Text>
+                    </View>
+                  </View>
                 );
               })}
-            </ScrollView>
+            </View>
+
+            {/* Legend */}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 12, gap: 15 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: PRIMARY_COLOR }} />
+                <Text style={{ color: theme.subText, fontSize: 10, fontFamily: 'Garet-Book' }}>Done</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'rgba(43, 144, 143, 0.2)' }} />
+                <Text style={{ color: theme.subText, fontSize: 10, fontFamily: 'Garet-Book' }}>Partial</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 2, borderWidth: 1, borderColor: theme.border }} />
+                <Text style={{ color: theme.subText, fontSize: 10, fontFamily: 'Garet-Book' }}>Empty</Text>
+              </View>
+            </View>
           </View>
-        </FadeInView>
 
-        {/* Habit List Section */}
-        <FadeInView delay={400} style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Daily Mantras</Text>
-        </FadeInView>
+          {/* Stats Summary for the Month */}
+          <FadeInView delay={200}>
+            <View style={{
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              borderWidth: 1,
+              padding: 25,
+              marginBottom: 20,
+              borderRadius: 32,
+              marginTop: 10,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 25 }}>
+                <Text style={{ color: theme.subText, fontSize: 10, fontFamily: 'Garet-Heavy', letterSpacing: 2 }}>MONTHLY PERFORMANCE</Text>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY_COLOR, shadowColor: PRIMARY_COLOR, shadowRadius: 4, shadowOpacity: 0.5 }} />
+              </View>
 
-        <View style={styles.habitGrid}>
-          {onboarding.day1Habits.map((habit, index) => {
-            const dateKey = selectedDate.toISOString().split('T')[0];
-            const isCompleted = (onboarding.habitHistory[dateKey] || []).includes(habit.id);
-
-            return (
-              <FadeInView key={habit.id} delay={600 + index * 100}>
-                <Pressable
-                  style={[
-                    styles.habitGlassCard,
-                    isCompleted && { borderColor: 'rgba(43, 144, 143, 0.3)', backgroundColor: 'rgba(43, 144, 143, 0.05)' }
-                  ]}
-                  onPress={() => toggleHabit(habit.id)}
-                >
-                  <View style={[styles.habitIconContainer, isCompleted && { backgroundColor: 'rgba(43, 144, 143, 0.2)' }]}>
-                    <Text style={[styles.habitIconEmoji, isCompleted && { opacity: 0.5 }]}>{habit.emoji}</Text>
+              <View style={{ flexDirection: 'row', gap: 15, marginBottom: 25 }}>
+                {/* Mastery Card */}
+                <View style={{ flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', padding: 15, borderRadius: 20, borderWidth: 1, borderColor: theme.border }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(43, 144, 143, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                    <Feather name="award" size={16} color={PRIMARY_COLOR} />
                   </View>
-                  <View style={styles.habitCardInfo}>
-                    <Text style={[styles.habitCardTitle, isCompleted && { color: 'rgba(255,255,255,0.3)', textDecorationLine: 'line-through' }]}>
-                      {habit.title}
-                    </Text>
-                    <Text style={[styles.habitCardStatus, isCompleted && { color: PRIMARY_COLOR }]}>
-                      {isCompleted ? 'Mastered today' : 'Daily Commitment'}
-                    </Text>
+                  <Text style={{ color: theme.text, fontSize: 24, fontFamily: 'Garet-Heavy' }}>{fullCompletionDays}</Text>
+                  <Text style={{ color: theme.subText, fontSize: 10, fontFamily: 'Garet-Book', marginTop: 4 }}>Mastered Days</Text>
+                </View>
+
+                {/* Consistency Card */}
+                <View style={{ flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', padding: 15, borderRadius: 20, borderWidth: 1, borderColor: theme.border }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(43, 144, 143, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                    <Feather name="activity" size={16} color={PRIMARY_COLOR} />
                   </View>
-                  <View style={[
-                    styles.habitCheckCircle,
-                    isCompleted && { backgroundColor: PRIMARY_COLOR, borderColor: PRIMARY_COLOR }
-                  ]}>
-                    <Feather name="check" size={16} color={isCompleted ? "#fff" : "rgba(255,255,255,0.1)"} />
-                  </View>
-                </Pressable>
-              </FadeInView>
-            );
-          })}
-        </View>
+                  <Text style={{ color: theme.text, fontSize: 24, fontFamily: 'Garet-Heavy' }}>{totalDays > 0 ? Math.round((fullCompletionDays / totalDays) * 100) : 0}%</Text>
+                  <Text style={{ color: theme.subText, fontSize: 10, fontFamily: 'Garet-Book', marginTop: 4 }}>Daily Rhythm</Text>
+                </View>
+              </View>
 
-        <FadeInView delay={1000} style={styles.quoteSeparator} />
-
-        <FadeInView delay={1200} style={styles.zenQuoteContainer}>
-          <Feather name="anchor" size={20} color={PRIMARY_COLOR} style={{ marginBottom: 16 }} />
-          <Text style={styles.zenQuoteText}>
-            "The mountains aren't torture.{"\n"}They're just {onboarding.timeline} days away."
-          </Text>
-        </FadeInView>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      <View style={[styles.navbar, { borderTopColor: 'rgba(255,255,255,0.08)', height: Platform.OS === 'ios' ? 90 : 70, paddingVertical: 0 }]}>
-        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-        <Pressable
-          style={styles.navButton}
-          onPress={() => setStep('dashboard')}
-        >
-          <Feather name="home" size={28} color={step === 'dashboard' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
-        </Pressable>
-        <Pressable
-          style={styles.navPlusButton}
-          onPress={() => setIsAddModalVisible(true)}
-        >
-          <Feather name="plus" size={36} color="#000" />
-        </Pressable>
-        <Pressable
-          style={styles.navButton}
-          onPress={() => setStep('stats')}
-        >
-          <Feather name="bar-chart-2" size={28} color={step === 'stats' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
-        </Pressable>
-      </View>
-    </View>
-  );
-
-  const renderStats = () => (
-    <View style={[styles.screen, { backgroundColor: '#000' }]}>
-      <Image
-        source={require('./assets/pattern_bg.png')}
-        style={[StyleSheet.absoluteFill, { opacity: 0.1 }]}
-        resizeMode="repeat"
-      />
-
-      <View style={[styles.header, { paddingTop: 60 }]}>
-        <Text style={[styles.cinematicTag, { marginBottom: 4 }]}>ANALYTICS</Text>
-        <Text style={[styles.dashboardTitle, { color: '#fff' }]}>Transcendence</Text>
-      </View>
-
-      <ScrollView style={{ flex: 1, padding: 20 }}>
-        {/* Main Goal Card - Moved from Dashboard */}
-        <FadeInView delay={100} style={{ marginBottom: 30 }}>
-          <View style={styles.premiumMainCard}>
-            <View style={styles.premiumMainBadge}>
-              <Text style={styles.premiumMainBadgeText}>CURRENT PHASE</Text>
+              <View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 4 }}>
+                  <Text style={{ color: theme.text, fontSize: 11, fontFamily: 'Garet-Heavy' }}>Evolution Progress</Text>
+                  <Text style={{ color: PRIMARY_COLOR, fontSize: 11, fontFamily: 'Garet-Heavy' }}>{Math.min(100, Math.round((fullCompletionDays / totalDays) * 100))}%</Text>
+                </View>
+                <View style={{ height: 8, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderRadius: 4, overflow: 'hidden' }}>
+                  <View style={{
+                    width: `${Math.min(100, (fullCompletionDays / Math.max(totalDays, 1)) * 100)}%`,
+                    height: '100%',
+                    backgroundColor: PRIMARY_COLOR,
+                    borderRadius: 4,
+                    shadowColor: PRIMARY_COLOR,
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.5,
+                    shadowRadius: 5
+                  }} />
+                </View>
+                <Text style={{ color: theme.subText, fontSize: 10, fontFamily: 'Garet-Book', marginTop: 12, textAlign: 'center', fontStyle: 'italic' }}>
+                  {fullCompletionDays > 15 ? "You're entering deep flow state." : "Every completed day is a node in your new identity."}
+                </Text>
+              </View>
             </View>
-            <Text style={styles.premiumMainTitle}>Nihilist → Opium Bird</Text>
-            <View style={styles.premiumProgressContainer}>
-              <View style={[styles.premiumProgressBar, { width: '15%' }]} />
-            </View>
-            <Text style={styles.premiumProgressText}>15% Transcendence Complete</Text>
-          </View>
-        </FadeInView>
-
-        {/* Momentum Chart Section */}
-        <FadeInView delay={200} style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Weekly Momentum</Text>
-        </FadeInView>
-
-        <FadeInView delay={400} style={[styles.statGlassCard, { height: 180, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingBottom: 30 }]}>
-          {[40, 70, 45, 90, 65, 80, 50].map((h, i) => (
-            <View key={i} style={{ alignItems: 'center' }}>
-              <View style={{ width: 12, height: h, backgroundColor: i === 6 ? PRIMARY_COLOR : 'rgba(255,255,255,0.1)', borderRadius: 6 }} />
-              <Text style={[styles.statLabel, { fontSize: 10, marginTop: 8 }]}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}</Text>
-            </View>
-          ))}
-        </FadeInView>
-
-        {/* Quick Stats Section - Moved from Dashboard */}
-        <View style={[styles.statsRow, { marginTop: 30 }]}>
-          <FadeInView delay={600} style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}>
-            <Text style={styles.statValue}>1</Text>
-            <Text style={[styles.statLabel, { color: 'rgba(255,255,255,0.6)' }]}>Day Streak</Text>
           </FadeInView>
-          <FadeInView delay={800} style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}>
-            <Text style={styles.statValue}>{onboarding.timeline}</Text>
-            <Text style={[styles.statLabel, { color: 'rgba(255,255,255,0.6)' }]}>Days to Bird</Text>
+
+          <FadeInView delay={300}>
+            <View style={{
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              borderWidth: 1,
+              padding: 25,
+              marginBottom: 40,
+              borderRadius: 32,
+              flexDirection: 'column'
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(43, 144, 143, 0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
+                  <MaterialCommunityIcons name="lightning-bolt" size={24} color={PRIMARY_COLOR} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.text, fontFamily: 'Garet-Heavy', fontSize: 16 }} numberOfLines={1} adjustsFontSizeToFit>Momentum Analysis</Text>
+                  <Text style={{ color: PRIMARY_COLOR, fontSize: 12, fontFamily: 'Garet-Book' }}>Rhythm detected</Text>
+                </View>
+              </View>
+              <Text style={{ color: theme.subText, fontSize: 13, fontFamily: 'Garet-Book', lineHeight: 20, fontStyle: 'italic' }}>
+                "Stability is not the absence of change, but the presence of rhythm."
+              </Text>
+            </View>
           </FadeInView>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
+
+        <View style={[styles.navbar, { borderTopColor: theme.border, height: Platform.OS === 'ios' ? 90 : 70, paddingVertical: 0 }]}>
+          <BlurView intensity={80} tint={theme.navbar as any} style={StyleSheet.absoluteFill} />
+          <Pressable style={styles.navButton} onPress={() => setStep('dashboard')}>
+            <Feather name="home" size={28} color={theme.subText} />
+          </Pressable>
+          <Pressable
+            style={[styles.navPlusButton, !isDarkMode && { backgroundColor: PRIMARY_COLOR, shadowColor: PRIMARY_COLOR }]}
+            onPress={() => setIsAddModalVisible(true)}
+          >
+            <Feather name="plus" size={36} color={isDarkMode ? "#000" : "#fff"} />
+          </Pressable>
+          <Pressable style={styles.navButton} onPress={() => setStep('stats')}>
+            <Feather name="bar-chart-2" size={28} color={theme.subText} />
+          </Pressable>
         </View>
-
-        {/* Visual Journey Tracker */}
-        <FadeInView delay={1000} style={[styles.journeyCard, { backgroundColor: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, marginTop: 30 }]}>
-          <Text style={styles.journeyTitle}>YOUR EVOLUTION</Text>
-          <View style={styles.journeyContainer}>
-            <View style={[styles.journeyLine, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
-            <View style={styles.journeyStep}>
-              <View style={styles.journeyIconWrapper}>
-                <View style={[styles.iconCropContainer, styles.activeStepGlow, { width: 56, height: 56, borderRadius: 28 }]}>
-                  <ExpoImage
-                    source={require('./assets/evolution-img-1.png')}
-                    style={styles.evolutionIconFixed}
-                    contentFit="cover"
-                    transition={0}
-                    priority="high"
-                  />
-                </View>
-              </View>
-              <Text style={[styles.journeyStepLabelHeader, { color: PRIMARY_COLOR }]}>Day 1</Text>
-              <View style={styles.journeyStageWrapper}>
-                <Text style={styles.journeyStepLabelSub}>Nihilist</Text>
-              </View>
-            </View>
-
-            <View style={styles.journeyStep}>
-              <View style={styles.journeyIconWrapper}>
-                <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
-                  <ExpoImage source={require('./assets/evolution-img-2.png')} style={styles.evolutionIcon} contentFit="cover" />
-                </View>
-              </View>
-              <Text style={[styles.journeyStepLabelHeader, { color: 'rgba(255,255,255,0.4)' }]}>Day 15</Text>
-              <View style={styles.journeyStageWrapper} />
-            </View>
-
-            <View style={styles.journeyStep}>
-              <View style={styles.journeyIconWrapper}>
-                <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
-                  <ExpoImage source={require('./assets/evolution-img-3.png')} style={styles.evolutionIcon} contentFit="cover" />
-                </View>
-              </View>
-              <Text style={[styles.journeyStepLabelHeader, { color: 'rgba(255,255,255,0.4)' }]}>Day 30</Text>
-              <View style={styles.journeyStageWrapper} />
-            </View>
-
-            <View style={styles.journeyStep}>
-              <View style={styles.journeyIconWrapper}>
-                <View style={[styles.iconCropContainer, { backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)' }]}>
-                  <ExpoImage source={require('./assets/evolution-img-4.png')} style={styles.evolutionIcon} contentFit="cover" />
-                </View>
-              </View>
-              <Text style={[styles.journeyStepLabelHeader, { color: 'rgba(255,255,255,0.4)' }]}>Day {onboarding.timeline}</Text>
-              <View style={styles.journeyStageWrapper} />
-            </View>
-          </View>
-        </FadeInView>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      <View style={[styles.navbar, { borderTopColor: 'rgba(255,255,255,0.08)', height: Platform.OS === 'ios' ? 90 : 70, paddingVertical: 0 }]}>
-        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-        <Pressable
-          style={styles.navButton}
-          onPress={() => setStep('dashboard')}
-        >
-          <Feather name="home" size={28} color={step === 'dashboard' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
-        </Pressable>
-        <Pressable
-          style={styles.navPlusButton}
-          onPress={() => setIsAddModalVisible(true)}
-        >
-          <Feather name="plus" size={36} color="#000" />
-        </Pressable>
-        <Pressable
-          style={styles.navButton}
-          onPress={() => setStep('stats')}
-        >
-          <Feather name="bar-chart-2" size={28} color={step === 'stats' ? PRIMARY_COLOR : "rgba(255,255,255,0.3)"} />
-        </Pressable>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -1154,7 +1734,11 @@ export default function App() {
             if (status !== 'granted') {
               Alert.alert('Notifications', 'Please enable notifications to stay on track!');
             }
-            const timeStr = notificationTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const hours = notificationTime.getHours();
+            const minutes = notificationTime.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            const timeStr = `${displayHours}:${minutes < 10 ? '0' + minutes : minutes} ${ampm}`;
             nextStep('reminder', 'loading', timeStr);
             setTimeout(() => setStep('firstHabit'), 2500);
           }}
@@ -1176,6 +1760,8 @@ export default function App() {
 
       {step === 'dashboard' && renderDashboard()}
       {step === 'stats' && renderStats()}
+      {step === 'settings' && renderSettings()}
+      {step === 'calendar' && renderCalendarView()}
 
       <Modal
         visible={isAddModalVisible}
@@ -1187,7 +1773,7 @@ export default function App() {
           <Animated.View
             style={[
               StyleSheet.absoluteFill,
-              { backgroundColor: 'rgba(0,0,0,0.85)', opacity: overlayOpacity }
+              { backgroundColor: isDarkMode ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.4)', opacity: overlayOpacity }
             ]}
           />
           <Pressable style={StyleSheet.absoluteFill} onPress={consolidatedClose} />
@@ -1197,11 +1783,16 @@ export default function App() {
               styles.iosSheetCard,
               {
                 transform: [{ translateY: panY }],
-                backgroundColor: '#0A0A0A',
+                backgroundColor: isDarkMode ? '#0A0A0A' : '#FFF',
                 borderWidth: 0,
                 borderTopLeftRadius: 36,
                 borderTopRightRadius: 36,
-                paddingTop: 12
+                paddingTop: 12,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: -10 },
+                shadowOpacity: isDarkMode ? 0 : 0.1,
+                shadowRadius: 20,
+                elevation: 10
               }
             ]}
             {...panResponder.panHandlers}
@@ -1214,7 +1805,7 @@ export default function App() {
 
 
               {/* Premium Grabber */}
-              <View style={{ alignSelf: 'center', width: 36, height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2, marginBottom: 20 }} />
+              <View style={{ alignSelf: 'center', width: 36, height: 4, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)', borderRadius: 2, marginBottom: 20 }} />
 
               <ScrollView
                 bounces={false}
@@ -1231,7 +1822,7 @@ export default function App() {
                     NEW HABIT
                   </Text>
                   <Text style={{
-                    color: '#fff', fontSize: 24, fontFamily: 'Garet-Heavy',
+                    color: isDarkMode ? '#fff' : '#1A1A1A', fontSize: 24, fontFamily: 'Garet-Heavy',
                     textAlign: 'center'
                   }}>
                     What is your next{'\n'}transformation?
@@ -1249,19 +1840,19 @@ export default function App() {
                     style={{
                       fontSize: 16,
                       fontFamily: 'Garet-Heavy',
-                      color: '#fff',
+                      color: isDarkMode ? '#fff' : '#000',
                       textAlign: 'center',
                       paddingVertical: 15,
                     }}
                     placeholder="ENTER HABIT..."
-                    placeholderTextColor="rgba(255,255,255,0.08)"
+                    placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.15)'}
                     value={newHabitTitle}
                     onChangeText={setNewHabitTitle}
                     autoFocus={false}
                     selectionColor={PRIMARY_COLOR}
                     autoCapitalize="words"
                   />
-                  <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.05)', width: '60%', alignSelf: 'center' }} />
+                  <View style={{ height: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', width: '60%', alignSelf: 'center' }} />
                 </View>
               </ScrollView>
 
@@ -1285,7 +1876,7 @@ export default function App() {
                   }}
                 >
                   <LinearGradient
-                    colors={newHabitTitle.trim() ? [PRIMARY_COLOR, '#1e6b6a'] : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.05)']}
+                    colors={newHabitTitle.trim() ? [PRIMARY_COLOR, '#1e6b6a'] : (isDarkMode ? ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.05)'] : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.05)'])}
                     style={{
                       height: 58, borderRadius: 20,
                       justifyContent: 'center', alignItems: 'center',
@@ -2370,5 +2961,75 @@ styles = StyleSheet.create({
   flexDir: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  settingsSection: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  settingsSectionTitle: {
+    fontSize: 10,
+    fontFamily: 'Garet-Heavy',
+    color: 'rgba(255,255,255,0.3)',
+    letterSpacing: 1.5,
+    marginBottom: 16,
+    marginLeft: 4,
+  },
+  settingsItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  settingsItemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  settingsItemText: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: 'Garet-Book',
+    color: '#fff',
+  },
+  settingsDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    marginLeft: 56,
+    marginVertical: 4,
+  },
+  premiumBadgeMini: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 4,
+  },
+  premiumBadgeMiniText: {
+    fontSize: 10,
+    fontFamily: 'Garet-Heavy',
+    color: '#000',
+  },
+  toggleContainer: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fff',
   },
 });
