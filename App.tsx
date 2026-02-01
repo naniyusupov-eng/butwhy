@@ -265,7 +265,7 @@ const CinematicIntro = ({
           source={imageSource}
           style={[styles.introImageEpic, { transform: [{ scale: zoomAnim }] }]}
           contentFit="cover"
-          transition={0}
+          transition={500}
           priority="high"
           cachePolicy="memory-disk"
         />
@@ -319,7 +319,7 @@ const CinematicIntro = ({
 
 const SuccessScreen = ({ onDashboard }: { onDashboard: () => void }) => (
   <CinematicIntro
-    imageSource={require('./assets/success_moment.png')}
+    imageSource={require('./assets/success_moment.jpg')}
     tag="CONGRATULATIONS"
     title={"TRANSFORMATION\nINITIALIZED"}
     caption={'"The penguin sees the light.\nYou are no longer bound by gravity."'}
@@ -684,10 +684,10 @@ export default function App() {
       try {
         const imageAssets = [
           require('./assets/nihilist_penguin.png'),
-          require('./assets/opium_bird.png'),
-          require('./assets/welcome_visual.png'),
+          require('./assets/opium_bird.jpg'),
+          require('./assets/welcome_visual.jpg'),
           require('./assets/pattern_bg.png'),
-          require('./assets/success_moment.png'),
+          require('./assets/success_moment.jpg'),
           require('./assets/evolution-img-1.png'),
           require('./assets/evolution-img-2.png'),
           require('./assets/evolution-img-3.png'),
@@ -749,7 +749,7 @@ export default function App() {
   };
 
   const toggleHabit = (id: string) => {
-    const dateKey = selectedDate.toISOString().split('T')[0];
+    const dateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
     setOnboarding(prev => {
       const currentHistory = prev.habitHistory[dateKey] || [];
       const isCompleted = currentHistory.includes(id);
@@ -804,7 +804,7 @@ export default function App() {
 
   const renderIntro2 = () => (
     <CinematicIntro
-      imageSource={require('./assets/opium_bird.png')}
+      imageSource={require('./assets/opium_bird.jpg')}
       tag="PART II"
       title={"THE\nAWAKENING"}
       caption={'"In 55 days, you become something different.\nThe Opium Bird. Enlightened. Transformed."'}
@@ -816,7 +816,7 @@ export default function App() {
 
   const renderWelcome = () => (
     <CinematicIntro
-      imageSource={require('./assets/welcome_visual.png')}
+      imageSource={require('./assets/welcome_visual.jpg')}
       tag="READY?"
       title={"YOUR\nTRANSFORMATION"}
       caption={'"Build Life-Changing Habits.\nJoin 100,000+ people improving daily."'}
@@ -965,7 +965,7 @@ export default function App() {
 
           <View style={styles.habitGrid}>
             {onboarding.day1Habits.map((habit, index) => {
-              const dateKey = selectedDate.toISOString().split('T')[0];
+              const dateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
               const isCompleted = (onboarding.habitHistory[dateKey] || []).includes(habit.id);
 
               return (
@@ -1404,9 +1404,11 @@ export default function App() {
 
     // Calculate monthly stats
     let fullCompletionDays = 0;
+    const todayStr = new Date().toISOString().split('T')[0]; // For comparison if needed, but we use local below
+
     Object.keys(onboarding.habitHistory).forEach(key => {
-      const date = new Date(key);
-      if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+      const [y, m, d] = key.split('-').map(Number);
+      if (y === currentYear && (m - 1) === currentMonth) {
         if (onboarding.habitHistory[key].length === onboarding.day1Habits.length) {
           fullCompletionDays++;
         }
@@ -1441,7 +1443,7 @@ export default function App() {
             </View>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flexDirection: 'row' }}>
             <Pressable
               onPress={() => changeMonth(-1)}
               disabled={!canGoPrev}
@@ -1449,7 +1451,8 @@ export default function App() {
                 width: 44, height: 44, borderRadius: 22,
                 backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1,
                 justifyContent: 'center', alignItems: 'center',
-                opacity: canGoPrev ? 1 : 0.3
+                opacity: canGoPrev ? 1 : 0.3,
+                marginRight: 10
               }}
             >
               <Feather name="chevron-left" size={20} color={theme.text} />
@@ -1491,7 +1494,7 @@ export default function App() {
                 }
 
                 const d = new Date(currentYear, currentMonth, dayNum);
-                const dateKey = d.toISOString().split('T')[0];
+                const dateKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
                 const isToday = isTodayMonth && dayNum === now.getDate();
                 const completedCount = (onboarding.habitHistory[dateKey] || []).length;
                 const totalHabits = onboarding.day1Habits.length;
@@ -1509,7 +1512,7 @@ export default function App() {
                       borderColor: isToday ? PRIMARY_COLOR : (completedCount > 0 ? PRIMARY_COLOR : 'transparent'),
                       justifyContent: 'center',
                       alignItems: 'center',
-                      shadowColor: isFullyCompleted ? PRIMARY_COLOR : 'transparent',
+                      shadowColor: isFullyCompleted ? PRIMARY_COLOR : 'rgba(0,0,0,0)',
                       shadowOffset: { width: 0, height: 4 },
                       shadowOpacity: 0.3,
                       shadowRadius: 8,
@@ -1556,12 +1559,12 @@ export default function App() {
             }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 25 }}>
                 <Text style={{ color: theme.subText, fontSize: 10, fontFamily: 'Garet-Heavy', letterSpacing: 2 }}>MONTHLY PERFORMANCE</Text>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY_COLOR, shadowColor: PRIMARY_COLOR, shadowRadius: 4, shadowOpacity: 0.5 }} />
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY_COLOR, shadowColor: PRIMARY_COLOR, shadowRadius: 4, shadowOpacity: 0.5, shadowOffset: { width: 0, height: 0 } }} />
               </View>
 
-              <View style={{ flexDirection: 'row', gap: 15, marginBottom: 25 }}>
+              <View style={{ flexDirection: 'row', marginBottom: 25 }}>
                 {/* Mastery Card */}
-                <View style={{ flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', padding: 15, borderRadius: 20, borderWidth: 1, borderColor: theme.border }}>
+                <View style={{ flex: 1, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', padding: 15, borderRadius: 20, borderWidth: 1, borderColor: theme.border, marginRight: 15 }}>
                   <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(43, 144, 143, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
                     <Feather name="award" size={16} color={PRIMARY_COLOR} />
                   </View>
@@ -1582,7 +1585,7 @@ export default function App() {
               <View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 4 }}>
                   <Text style={{ color: theme.text, fontSize: 11, fontFamily: 'Garet-Heavy' }}>Evolution Progress</Text>
-                  <Text style={{ color: PRIMARY_COLOR, fontSize: 11, fontFamily: 'Garet-Heavy' }}>{Math.min(100, Math.round((fullCompletionDays / totalDays) * 100))}%</Text>
+                  <Text style={{ color: PRIMARY_COLOR, fontSize: 11, fontFamily: 'Garet-Heavy' }}>{totalDays > 0 ? Math.min(100, Math.round((fullCompletionDays / totalDays) * 100)) : 0}%</Text>
                 </View>
                 <View style={{ height: 8, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderRadius: 4, overflow: 'hidden' }}>
                   <View style={{
